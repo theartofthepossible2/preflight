@@ -1,0 +1,142 @@
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
+import type { AdapterAccountType } from 'next-auth/adapters';
+
+// ---------- Auth.js standard tables ----------
+
+export const users = pgTable('user', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text('name'),
+  email: text('email').notNull(),
+  emailVerified: timestamp('emailVerified', { mode: 'date' }),
+  image: text('image'),
+});
+
+export const accounts = pgTable(
+  'account',
+  {
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').$type<AdapterAccountType>().notNull(),
+    provider: text('provider').notNull(),
+    providerAccountId: text('providerAccountId').notNull(),
+    refresh_token: text('refresh_token'),
+    access_token: text('access_token'),
+    expires_at: integer('expires_at'),
+    token_type: text('token_type'),
+    scope: text('scope'),
+    id_token: text('id_token'),
+    session_state: text('session_state'),
+  },
+  (account) => ({
+    compoundKey: primaryKey({ columns: [account.provider, account.providerAccountId] }),
+  }),
+);
+
+export const sessions = pgTable('session', {
+  sessionToken: text('sessionToken').primaryKey(),
+  userId: text('userId')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expires: timestamp('expires', { mode: 'date' }).notNull(),
+});
+
+export const verificationTokens = pgTable(
+  'verificationToken',
+  {
+    identifier: text('identifier').notNull(),
+    token: text('token').notNull(),
+    expires: timestamp('expires', { mode: 'date' }).notNull(),
+  },
+  (vt) => ({ compoundKey: primaryKey({ columns: [vt.identifier, vt.token] }) }),
+);
+
+// ---------- Preflight product tables ----------
+
+export const subscriptions = pgTable(
+  'subscription',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    stripeCustomerId: text('stripeCustomerId').notNull(),
+    stripeSubscriptionId: text('stripeSubscriptionId'),
+    stripePriceId: text('stripePriceId'),
+    status: text('status').notNull(),
+    currentPeriodEnd: timestamp('currentPeriodEnd', { mode: 'date' }),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: uniqueIndex('subscription_user_idx').on(t.userId),
+    customerIdx: uniqueIndex('subscription_customer_idx').on(t.stripeCustomerId),
+  }),
+);
+
+export const apiKeys = pgTable(
+  'api_key',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    keyHash: text('keyHash').notNull(),
+    keyPrefix: text('keyPrefix').notNull(),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    lastUsedAt: timestamp('lastUsedAt', { mode: 'date' }),
+    revokedAt: timestamp('revokedAt', { mode: 'date' }),
+  },
+  (t) => ({
+    hashIdx: uniqueIndex('api_key_hash_idx').on(t.keyHash),
+    userIdx: index('api_key_user_idx').on(t.userId),
+  }),
+);
+
+export const scans = pgTable(
+  'scan',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    apiKeyId: text('apiKeyId').references(() => apiKeys.id, { onDelete: 'set null' }),
+    repo: text('repo'),
+    ref: text('ref'),
+    commitSha: text('commitSha'),
+    findingsCount: integer('findingsCount').notNull().default(0),
+    highCount: integer('highCount').notNull().default(0),
+    aiEnriched: boolean('aiEnriched').notNull().default(false),
+    findings: jsonb('findings').notNull(),
+    additionalObservations: jsonb('additionalObservations'),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('scan_user_idx').on(t.userId),
+    createdIdx: index('scan_created_idx').on(t.createdAt),
+  }),
+);
+
+// Content-hash cache: avoids re-billing for unchanged flagged code.
+// cacheKey = sha256(finding.id + finding.codeSnippet) — see lib/cache.ts.
+export const analysisCache = pgTable(
+  'analysis_cache',
+  {
+    cacheKey: text('cacheKey').primaryKey(),
+    analysis: jsonb('analysis').notNull(),
+    model: text('model').notNull(),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    hitCount: integer('hitCount').notNull().default(0),
+  },
+);

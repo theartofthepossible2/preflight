@@ -1,0 +1,61 @@
+{
+  "version": "5.0",
+  "source": "Curated representative subset. Canonical machine-readable export: https://asvs.dev",
+  "note": "These entries cover the categories the current four checks touch. IDs follow the v5.0.0-CHAPTER.SECTION.REQUIREMENT format. Verify against the canonical export before relying on the exact IDs in published output; expand to the full standard in a follow-up.",
+  "categoryMap": {
+    "ACCESS": ["v5.0.0-8.1.1", "v5.0.0-8.2.1"],
+    "SECRETS": ["v5.0.0-14.1.1", "v5.0.0-14.1.2"],
+    "CONFIG": ["v5.0.0-14.4.1", "v5.0.0-14.4.2", "v5.0.0-14.4.3"]
+  },
+  "requirements": [
+    {
+      "id": "v5.0.0-8.1.1",
+      "chapter": "V8 Authorization",
+      "section": "General Authorization Design",
+      "title": "Server-side enforcement of access control",
+      "text": "Verify that the application enforces access control rules on a trusted service layer and never relies solely on client-side checks. Every server entry point that accesses protected data must verify the requester's identity and authorization before completing the operation."
+    },
+    {
+      "id": "v5.0.0-8.2.1",
+      "chapter": "V8 Authorization",
+      "section": "Operation Level Access Control",
+      "title": "Authorization checks at every entry point",
+      "text": "Verify that authorization decisions are made at every function or endpoint that performs sensitive actions or returns sensitive data, including server actions, route handlers, and API routes. Missing authorization on a single entry point bypasses all other controls."
+    },
+    {
+      "id": "v5.0.0-14.1.1",
+      "chapter": "V14 Configuration",
+      "section": "Secret Management",
+      "title": "No hardcoded secrets or credentials in source",
+      "text": "Verify that the application does not contain hardcoded secrets, API keys, or database credentials in source code, configuration files, or comments. Secrets must be sourced from a secret store or environment variables that are scoped to the runtime that needs them."
+    },
+    {
+      "id": "v5.0.0-14.1.2",
+      "chapter": "V14 Configuration",
+      "section": "Secret Management",
+      "title": "Server-only secrets not exposed to the client",
+      "text": "Verify that secrets intended for server use only are not embedded in client bundles. In Next.js, environment variables prefixed NEXT_PUBLIC_ are inlined into the browser bundle; high-privilege keys (service-role, signing, admin) must never carry that prefix."
+    },
+    {
+      "id": "v5.0.0-14.4.1",
+      "chapter": "V14 Configuration",
+      "section": "HTTP Security Headers",
+      "title": "Content Security Policy",
+      "text": "Verify that the application sets a Content-Security-Policy header that restricts the origins from which scripts, styles, and other resources may be loaded, reducing the impact of cross-site scripting."
+    },
+    {
+      "id": "v5.0.0-14.4.2",
+      "chapter": "V14 Configuration",
+      "section": "HTTP Security Headers",
+      "title": "HTTP Strict Transport Security",
+      "text": "Verify that the application sets a Strict-Transport-Security header that instructs browsers to use TLS for all future connections, with an appropriate max-age and includeSubDomains."
+    },
+    {
+      "id": "v5.0.0-14.4.3",
+      "chapter": "V14 Configuration",
+      "section": "HTTP Security Headers",
+      "title": "Clickjacking and MIME-sniffing protections",
+      "text": "Verify that responses set X-Frame-Options (or a frame-ancestors CSP directive) to prevent clickjacking, and X-Content-Type-Options: nosniff to prevent MIME-type confusion attacks."
+    }
+  ]
+}

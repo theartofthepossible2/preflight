@@ -1,0 +1,122 @@
+:root {
+  --bg: #0b0d10;
+  --panel: #14171c;
+  --panel-2: #1a1e25;
+  --text: #e6e9ef;
+  --muted: #8a93a3;
+  --border: #262b34;
+  --accent: #6aa6ff;
+  --high: #ff6b6b;
+  --medium: #ffb454;
+  --low: #6ed0a8;
+  --info: #8a93a3;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+main { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+
+header h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+header p.tagline { color: var(--muted); margin: 6px 0 0; font-size: 14px; }
+header .disclaimer {
+  margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--panel); color: var(--muted); font-size: 13px;
+}
+
+.uploader {
+  margin-top: 24px; padding: 18px; border: 1px dashed var(--border);
+  border-radius: 10px; background: var(--panel);
+}
+.uploader label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.uploader .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.uploader input[type="text"], .uploader input[type="password"] {
+  width: 100%; padding: 8px 10px; font: inherit;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  outline: none;
+}
+.uploader input[type="text"]:focus, .uploader input[type="password"]:focus {
+  border-color: var(--accent);
+}
+.uploader button {
+  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent);
+  background: transparent; color: var(--accent); cursor: pointer; font: inherit;
+}
+.uploader button:disabled { opacity: 0.5; cursor: not-allowed; }
+.uploader .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+.error {
+  margin-top: 16px; padding: 10px 12px; border: 1px solid var(--high);
+  border-radius: 8px; color: var(--high); background: rgba(255, 107, 107, 0.06);
+}
+
+.summary {
+  margin-top: 24px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.chip {
+  font-size: 12px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
+}
+.chip.high { color: var(--high); border-color: rgba(255, 107, 107, 0.3); }
+.chip.medium { color: var(--medium); border-color: rgba(255, 180, 84, 0.3); }
+.chip.low { color: var(--low); border-color: rgba(110, 208, 168, 0.3); }
+.chip.info { color: var(--info); }
+
+.ai-status {
+  margin-top: 16px; font-size: 13px; color: var(--muted);
+}
+.ai-status.warn { color: var(--medium); }
+
+.findings { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+.finding {
+  border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+  padding: 14px 16px;
+}
+.finding .top {
+  display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+}
+.finding .sev {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  padding: 2px 7px; border-radius: 4px; text-transform: uppercase;
+}
+.finding .sev.HIGH { color: var(--bg); background: var(--high); }
+.finding .sev.MEDIUM { color: var(--bg); background: var(--medium); }
+.finding .sev.LOW { color: var(--bg); background: var(--low); }
+.finding .sev.INFO { color: var(--bg); background: var(--info); }
+.finding h3 { margin: 0; font-size: 15px; font-weight: 600; flex: 1 1 auto; }
+.finding .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.finding .meta code { color: var(--text); }
+.finding .conf {
+  display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--border); color: var(--muted); margin-left: 6px;
+}
+.finding .body { margin-top: 10px; font-size: 14px; }
+.finding .body h4 {
+  font-size: 12px; color: var(--muted); margin: 12px 0 4px;
+  text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
+}
+.finding .body ol { padding-left: 18px; margin: 4px 0; }
+.finding pre {
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 12px; margin: 4px 0;
+  overflow-x: auto; font-size: 12px; line-height: 1.45;
+}
+
+.observations { margin-top: 20px; }
+.observations h2 { font-size: 16px; margin: 0 0 8px; }
+.observations p.note { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+.observations .item {
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+  padding: 10px 12px; margin-top: 8px; font-size: 13px;
+}
