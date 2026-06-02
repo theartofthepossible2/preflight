@@ -45,10 +45,18 @@ export interface ConnectState {
 export async function loadConnectState(userId: string): Promise<ConnectState> {
   const configured = isGithubAppConfigured();
 
-  const [installRows, setupRows] = await Promise.all([
-    db.select().from(githubInstallations).where(eq(githubInstallations.userId, userId)),
-    db.select().from(repoSetups).where(eq(repoSetups.userId, userId)),
-  ]);
+  // Fail soft if these tables don't exist yet (migration 0002 not applied) or the
+  // DB hiccups — degrade to an empty Connect section instead of 500ing /dashboard.
+  let installRows: (typeof githubInstallations.$inferSelect)[] = [];
+  let setupRows: (typeof repoSetups.$inferSelect)[] = [];
+  try {
+    [installRows, setupRows] = await Promise.all([
+      db.select().from(githubInstallations).where(eq(githubInstallations.userId, userId)),
+      db.select().from(repoSetups).where(eq(repoSetups.userId, userId)),
+    ]);
+  } catch {
+    return { configured, installations: [], repos: [], setups: [] };
+  }
 
   const installations: ConnectInstallation[] = installRows.map((r) => ({
     installationId: r.installationId,
