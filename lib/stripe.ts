@@ -3,12 +3,13 @@ import { db } from '@/db';
 import { subscriptions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-const apiKey = process.env.STRIPE_SECRET_KEY;
-if (!apiKey && process.env.NODE_ENV === 'production') {
-  throw new Error('STRIPE_SECRET_KEY is not configured.');
-}
+// Module-load must not throw — Vercel imports this during build before runtime
+// env vars are inspected. If the key is missing, the SDK is still constructed
+// with a placeholder and any real API call will fail with a Stripe auth error
+// at request time, making the missing env var obvious in logs.
+const apiKey = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder';
 
-export const stripe = new Stripe(apiKey ?? 'sk_test_placeholder', {
+export const stripe = new Stripe(apiKey, {
   apiVersion: '2025-02-24.acacia',
 });
 
