@@ -140,3 +140,65 @@ export const analysisCache = pgTable(
     hitCount: integer('hitCount').notNull().default(0),
   },
 );
+
+// ---------- Automated repo setup (GitHub App) ----------
+
+// One row per GitHub App installation a user connects. The installation is the
+// scoped, revocable grant that lets the backend write the workflow file + secret.
+export const githubInstallations = pgTable(
+  'github_installation',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    // GitHub's numeric installation id (stable per install).
+    installationId: integer('installationId').notNull(),
+    accountLogin: text('accountLogin').notNull(),
+    // 'User' | 'Organization'.
+    accountType: text('accountType').notNull(),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // Set while an org install awaits owner approval, or when GitHub suspends it.
+    suspendedAt: timestamp('suspendedAt', { mode: 'date' }),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => ({
+    installationIdx: uniqueIndex('github_installation_installation_idx').on(t.installationId),
+    userIdx: index('github_installation_user_idx').on(t.userId),
+  }),
+);
+
+// One row per repo a user has run automated setup against. gateProvider/gateState
+// exist from day one so additional deploy-gate adapters need no migration.
+export const repoSetups = pgTable(
+  'repo_setup',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    installationId: integer('installationId').notNull(),
+    // 'owner/name'.
+    repoFullName: text('repoFullName').notNull(),
+    // GitHub numeric repo id — survives renames.
+    repoId: integer('repoId'),
+    defaultBranch: text('defaultBranch'),
+    // pending | created | updated | unchanged | drift | error
+    workflowState: text('workflowState').notNull().default('pending'),
+    workflowSha: text('workflowSha'),
+    // pending | set | error
+    secretState: text('secretState').notNull().default('pending'),
+    apiKeyId: text('apiKeyId').references(() => apiKeys.id, { onDelete: 'set null' }),
+    gateProvider: text('gateProvider').notNull().default('vercel'),
+    // unverified | required | missing | error
+    gateState: text('gateState').notNull().default('unverified'),
+    gateLastCheckedAt: timestamp('gateLastCheckedAt', { mode: 'date' }),
+    lastError: text('lastError'),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userRepoIdx: uniqueIndex('repo_setup_user_repo_idx').on(t.userId, t.repoFullName),
+    userIdx: index('repo_setup_user_idx').on(t.userId),
+  }),
+);

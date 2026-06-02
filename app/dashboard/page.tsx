@@ -6,7 +6,11 @@ import { db } from '@/db';
 import { scans } from '@/db/schema';
 import { listKeys } from '@/lib/apiKey';
 import { getSubscriptionState } from '@/lib/stripe';
+import { WORKFLOW_YAML } from '@/lib/github/workflow-template';
+import { loadConnectState } from '@/lib/github/setup-data';
+import { DEFAULT_GATE_PROVIDER, getGateProvider } from '@/lib/gates';
 import { signOutAction } from './actions';
+import { ConnectManager } from './connect-client';
 import { ApiKeyManager, BillingButtons } from './dashboard-client';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +19,7 @@ export default async function Dashboard() {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin?callbackUrl=/dashboard');
 
-  const [subscription, keys, recentScans] = await Promise.all([
+  const [subscription, keys, recentScans, connectState] = await Promise.all([
     getSubscriptionState(session.user.id),
     listKeys(session.user.id),
     db
@@ -33,7 +37,17 @@ export default async function Dashboard() {
       .where(eq(scans.userId, session.user.id))
       .orderBy(desc(scans.createdAt))
       .limit(20),
+    loadConnectState(session.user.id),
   ]);
+
+  // Flatten the active gate provider into a serializable descriptor for the client.
+  const provider = getGateProvider(DEFAULT_GATE_PROVIDER);
+  const gate = {
+    id: provider.id,
+    label: provider.label,
+    settingsUrl: provider.settingsUrl({ repoFullName: '' }),
+    instructions: provider.instructions({ repoFullName: '' }).map((i) => i.text),
+  };
 
   return (
     <>
@@ -80,6 +94,15 @@ export default async function Dashboard() {
         <BillingButtons subscribed={subscription.active} />
       </section>
 
+      <ConnectManager
+        configured={connectState.configured}
+        subscribed={subscription.active}
+        installations={connectState.installations}
+        repos={connectState.repos}
+        setups={connectState.setups}
+        gate={gate}
+      />
+
       <ApiKeyManager initialKeys={keys} />
 
       <section className="uploader">
@@ -113,31 +136,12 @@ export default async function Dashboard() {
       </section>
 
       <section className="uploader">
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Install the Action</h2>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Manual setup</h2>
         <p className="hint" style={{ marginTop: 0 }}>
-          Add this to <code>.github/workflows/preflight.yml</code>:
+          Prefer to wire it up yourself? Add this to{' '}
+          <code>.github/workflows/preflight.yml</code>:
         </p>
-        <pre style={{ fontSize: 12 }}>
-{`name: Preflight Security Gate
-on:
-  repository_dispatch:
-    types: [vercel.deployment.success]
-jobs:
-  security-gate:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      statuses: write
-      checks: write
-    steps:
-      - uses: vercel/repository-dispatch/actions/status@v1
-        with:
-          name: Preflight Security Gate
-      - uses: actions/checkout@v4
-      - uses: theartofthepossible2/preflight/action@v1
-        with:
-          api-key: \${{ secrets.PREFLIGHT_API_KEY }}`}
-        </pre>
+        <pre style={{ fontSize: 12 }}>{WORKFLOW_YAML.trimEnd()}</pre>
         <p className="hint">
           Then in Vercel → Project → Settings → Deployment Checks, add a check named{' '}
           <code>Preflight Security Gate</code> to match the workflow.

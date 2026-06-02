@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { WORKFLOW_YAML } from '@/lib/github/workflow-template';
 import { IconArrowRight, IconLock } from '../_components/icons';
 
 export const metadata: Metadata = {
@@ -56,25 +57,7 @@ const steps = [
           Commit this to <code className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">.github/workflows/preflight.yml</code>:
         </p>
         <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-4 text-[13px] leading-relaxed text-slate-100">
-          <code>{`name: Preflight Security Gate
-on:
-  repository_dispatch:
-    types: [vercel.deployment.success]
-jobs:
-  security-gate:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      statuses: write
-      checks: write
-    steps:
-      - uses: vercel/repository-dispatch/actions/status@v1
-        with:
-          name: Preflight Security Gate
-      - uses: actions/checkout@v4
-      - uses: theartofthepossible2/preflight/action@v1
-        with:
-          api-key: \${{ secrets.PREFLIGHT_API_KEY }}`}</code>
+          <code>{WORKFLOW_YAML.trimEnd()}</code>
         </pre>
         <p className="mt-3 text-sm text-slate-500">
           Vercel fires this workflow when it finishes a production build. The scanner runs in your CI

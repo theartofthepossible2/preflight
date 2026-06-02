@@ -15,6 +15,13 @@
       "when": 1780379095945,
       "tag": "0001_solid_steve_rogers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780390164431,
+      "tag": "0002_flat_husk",
+      "breakpoints": true
     }
   ]
 }
