@@ -88,3 +88,62 @@ GitHub → land on `/dashboard` with no 500. Then issue an API key and confirm i
 - The deployment lives on `preflight-seven.vercel.app` because the original `usepreflight.space`
   domain was flagged by Google Safe Browsing (`.space` TLD reputation). A real `.com`/`.dev`/
   `.security` domain is still an open decision.
+
+---
+
+# Production security gate — Vercel Deployment Checks setup
+
+> Separate from the 500 fix above. These steps make the Preflight scan actually **hold the
+> production promotion** on HIGH findings. The gate is built (two workflows committed on the
+> `preflight-action` branch) but stays **inert** until the steps below are done.
+
+## How it works (so the steps make sense)
+
+- On a production deploy, Vercel's GitHub integration fires a `repository_dispatch` event
+  (`vercel.deployment.success`) at this repo.
+- `.github/workflows/vercel-deployment-check.yml` runs the scan and, via
+  `vercel/repository-dispatch/actions/status@v1`, sets a **commit status** named
+  **`Preflight Security Gate`** on the deployed commit.
+- Vercel **does not read GitHub check runs** — it gates on that commit status. The status
+  starts `pending`; the job's outcome decides it: `action/report.mjs` exits non-zero on a
+  HIGH finding → job fails → status fails → Vercel holds the promotion.
+- `preflight.yml` is the separate PR-time check (developer feedback + branch protection);
+  it does not gate production.
+
+## Do this, in order
+
+1. **Apply the RLS migration to the prod DB.** New migration
+   `db/migrations/0001_solid_steve_rogers.sql` enables Row Level Security on all 8 tables.
+   From a shell with the prod pooler `DATABASE_URL` in `.env.local` (drizzle-kit loads it):
+   ```
+   npm run db:migrate
+   ```
+   `0000` is already applied (tables exist in prod), so this applies **only** the new RLS
+   migration. Safe / non-breaking: RLS is enabled with **no FORCE and no policies**, and the
+   app connects as the table owner (owner is exempt from RLS unless FORCE is set), so existing
+   Drizzle queries are unaffected. It is fail-closed defense-in-depth — any non-owner role
+   (e.g. a Supabase anon/authenticated connection) is denied until a policy is added.
+2. **Add the GitHub repo secret** `PREFLIGHT_API_KEY` (repo → Settings → Secrets and variables
+   → Actions → New repository secret). Both workflows pass it to `./action`.
+3. **Register the check in Vercel.** Project → Settings → **Deployment Checks** (confirm the
+   exact location in the current dashboard) → add a check named **exactly**
+   `Preflight Security Gate` — it must match the `name:` in `vercel-deployment-check.yml`.
+   This is what makes Vercel wait for the status before promoting.
+4. **Confirm the integration sends dispatch events.** The Vercel-for-GitHub integration fires
+   `vercel.deployment.*` automatically for connected repos; no code change needed. There is no
+   documented per-repo toggle — if events never arrive, verify the integration is installed on
+   this repo.
+5. **Merge `preflight-action` → `main` and push.** `repository_dispatch` only triggers
+   workflows that exist on the **default branch**, so the gate is inert until this lands on
+   main. (Outstanding "merge to main" step — needs your go-ahead to push.)
+
+## Verify it's live
+
+- Trigger a production deploy (push to main or redeploy). In the repo's **Actions** tab a
+  **Preflight Security Gate** run should appear, triggered by `repository_dispatch`.
+- On the deployed commit, a `Preflight Security Gate` **commit status** should show
+  success/failure. On a HIGH finding, Vercel should hold the promotion.
+- **First run:** open the dispatch run's logs and inspect `github.event.client_payload` to
+  confirm Vercel's field names (deployment URL / sha / target), in case you later want to scan
+  an exact ref or restrict the job to `target == 'production'`. The workflow currently scans
+  the default-branch HEAD and runs on every successful deploy.
