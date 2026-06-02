@@ -53,9 +53,11 @@ npm run dev
 
 ## External setup (one-time)
 
-- **Supabase Postgres** — in your project: Settings → Database → Connection string → URI →
-  pick **Transaction** mode (port 6543, the pooled connection — required for serverless). Copy
-  to `DATABASE_URL`. Preflight uses Supabase as a managed Postgres only; we don't use Supabase
+- **Supabase Postgres** — in your project: Connect → use a **pooler** connection string
+  (`...pooler.supabase.com`), either Transaction (6543, ideal for serverless) or Session (5432).
+  Do **not** use the Direct connection (`db.[ref].supabase.co`) — it's IPv6-only and fails on
+  Vercel serverless. Copy to `DATABASE_URL`. The client sets `prepare: false`, so either pooler
+  port works. Preflight uses Supabase as a managed Postgres only; we don't use Supabase
   Auth / Storage / Realtime (Auth.js handles auth).
 - **GitHub OAuth app** (github.com/settings/developers) → set callback URL to
   `http://localhost:3000/api/auth/callback/github` (and your prod URL) → `AUTH_GITHUB_ID` and
