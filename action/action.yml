@@ -1,0 +1,47 @@
+name: 'Preflight'
+description: 'Deterministic security gate for Next.js + Supabase/Neon projects. Scans on push and fails the check on HIGH findings so Vercel can hold the production promotion.'
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  api-key:
+    description: 'Preflight API key. Store it as a repository secret (e.g. PREFLIGHT_API_KEY) and pass it here.'
+    required: true
+  backend-url:
+    description: 'Preflight backend base URL.'
+    required: false
+    default: 'https://preflight-seven.vercel.app'
+  fail-on:
+    description: 'Minimum severity that fails the check: HIGH, MEDIUM, or LOW.'
+    required: false
+    default: 'HIGH'
+  github-token:
+    description: 'Token used to post the Check Run. Defaults to the workflow token; needs checks: write.'
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run Preflight scan
+      shell: bash
+      run: |
+        # The scanner exits non-zero when HIGH findings exist; swallow that here
+        # so the report step always runs and owns the gate decision.
+        node "$GITHUB_ACTION_PATH/../preflight.mjs" "$GITHUB_WORKSPACE" --json \
+          > "$RUNNER_TEMP/preflight-findings.json" || true
+
+    - name: Report and gate
+      shell: bash
+      env:
+        PREFLIGHT_API_KEY: ${{ inputs.api-key }}
+        PREFLIGHT_BACKEND_URL: ${{ inputs.backend-url }}
+        PREFLIGHT_FAIL_ON: ${{ inputs.fail-on }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/report.mjs" "$RUNNER_TEMP/preflight-findings.json"
