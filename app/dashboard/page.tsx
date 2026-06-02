@@ -116,23 +116,29 @@ export default async function Dashboard() {
           Add this to <code>.github/workflows/preflight.yml</code>:
         </p>
         <pre style={{ fontSize: 12 }}>
-{`name: Preflight
-on: [push, pull_request]
+{`name: Preflight Security Gate
+on:
+  repository_dispatch:
+    types: [vercel.deployment.success]
 jobs:
-  preflight:
+  security-gate:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      statuses: write
       checks: write
     steps:
+      - uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: Preflight Security Gate
       - uses: actions/checkout@v4
-      - uses: theartofthepossible2/preflight-action@v1
+      - uses: theartofthepossible2/preflight/action@v1
         with:
           api-key: \${{ secrets.PREFLIGHT_API_KEY }}`}
         </pre>
         <p className="hint">
-          Then in Vercel → Project → Settings → Git → Deployment Checks, mark the{' '}
-          <code>preflight</code> check as required.
+          Then in Vercel → Project → Settings → Deployment Checks, add a check named{' '}
+          <code>Preflight Security Gate</code> to match the workflow.
         </p>
       </section>
     </main>

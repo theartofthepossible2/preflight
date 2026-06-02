@@ -96,6 +96,6 @@ preflight.mjs                  Reference CLI implementation
 
 ## Coming next
 
-- The GitHub Action itself (`preflight-action`) — separate repo, published to Marketplace.
+- Marketplace listing for the GitHub Action — it ships from `action/` in this repo, not a separate one.
 - Content-hash analysis cache wired into `/api/enrich` (table is in place).
 - Model tiering (Haiku first-pass, Sonnet for HIGH / ambiguous).
