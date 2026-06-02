@@ -1,10 +1,14 @@
 name: Preflight
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
-# Dogfood run: posts the "preflight" check on this repo. It is NOT wired into
-# Vercel Deployment Checks, so a red check here does not block any deploy.
+# Dogfood run on this repo. On pushes to main it posts the "preflight" check
+# against the production commit, so Vercel Deployment Checks can hold the
+# production promotion on HIGH findings (once enabled in Vercel settings). On
+# PRs it posts against the PR head. The gate logic lives in action/report.mjs.
 jobs:
   security-gate:
     runs-on: ubuntu-latest

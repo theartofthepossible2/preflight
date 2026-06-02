@@ -42,7 +42,9 @@ const ASVS = {
 
 // ---------- file walking ----------
 const IGNORE_DIRS = new Set([
-  'node_modules', '.next', '.git', 'dist', 'build', 'out', 'coverage', '.turbo', '.vercel', '.cache',
+  // '.claude' holds Claude Code's worktrees/settings — sibling checkouts, not deployed app code.
+  // Without it the walker descends into .claude/worktrees/** and double-counts every finding.
+  'node_modules', '.next', '.git', 'dist', 'build', 'out', 'coverage', '.turbo', '.vercel', '.cache', '.claude',
 ]);
 const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 
@@ -111,6 +113,15 @@ const DB_HINTS = [
 ];
 const hasDbAccess = (c) => DB_HINTS.some((r) => r.test(c));
 
+// A connection string pointing at one of these hosts is local dev / a build-time
+// placeholder, not a leaked production credential.
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|::1|0\.0\.0\.0)$/i;
+// Unambiguous non-secret tokens. Deliberately excludes weak-but-plausible real
+// passwords (postgres, admin, root) so those still flag against a remote host.
+const isPlaceholderSecret = (pw) =>
+  /^(placeholder|changeme|your[-_]?password|example|sample|dummy|x{3,})$/i.test(pw) ||
+  /^[[<{].*[\]>}]$/.test(pw);
+
 // ========== Check A: secret exposure ==========
 function checkSecretExposure(p) {
   const PUBLIC_OK = /(ANON|PUBLISHABLE)/i; // anon / publishable keys are public by design
@@ -157,8 +168,13 @@ function checkSecretExposure(p) {
     }
 
     // 3) hardcoded Postgres connection string with credentials
-    const conn = /postgres(?:ql)?:\/\/[^\s'"`]+:[^\s'"`]+@/g;
+    const conn = /postgres(?:ql)?:\/\/([^\s'"`:/@]+):([^\s'"`@]+)@([^\s'"`:/?]+)/g;
     while ((m = conn.exec(c))) {
+      const [, , pass, host] = m;
+      // Skip local-only strings and unambiguous placeholders (e.g. fail-soft build
+      // defaults like postgresql://placeholder:placeholder@127.0.0.1). These are not
+      // leaked production secrets; flagging them erodes trust in the gate.
+      if (LOCAL_HOST.test(host) || isPlaceholderSecret(pass)) continue;
       add({
         severity: SEV.HIGH, asvs: ASVS.SECRETS,
         title: 'Hardcoded database connection string with credentials',
