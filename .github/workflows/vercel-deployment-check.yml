@@ -2,15 +2,15 @@ name: Preflight Security Gate
 
 # Real production gate. When Vercel finishes building a deployment it fires a
 # `repository_dispatch` event at this repo; this workflow runs the Preflight
-# scan and reports a COMMIT STATUS that Vercel Deployment Checks reads to hold
-# (or allow) the production promotion. Vercel does NOT read GitHub check runs —
-# the commit status set by vercel/repository-dispatch/actions/status@v1 is the
-# signal it gates on.
+# scan, which posts a GitHub check run named `preflight`. Vercel Deployment
+# Checks auto-discovers that check run by name and, when it's required for the
+# Production environment, holds (or allows) the promotion based on its result.
+# The status@v1 step below also reports a commit status as a secondary signal.
 #
 # repository_dispatch only fires from workflows on the DEFAULT branch, so this
-# gate is inert until merged to main. Vercel-side setup (register the check name
-# below, enable the GitHub integration's dispatch events, add PREFLIGHT_API_KEY)
-# is documented in HANDOFF_1_DEPLOY_FIX.md.
+# gate is inert until merged to main. Vercel-side setup (require the `preflight`
+# check in Deployment Checks, enable the GitHub integration's dispatch events,
+# add PREFLIGHT_API_KEY) is documented on the /install page.
 on:
   repository_dispatch:
     types:
@@ -24,10 +24,10 @@ jobs:
       statuses: write # status@v1 sets the commit status Vercel gates on
       checks: write # the Preflight action posts the detailed "preflight" check run
     steps:
-      # Sets the commit status to pending now (on the deployment's ref, read
-      # from the dispatch payload); its post-step reports the final
-      # success/failure from this job's outcome. The check name MUST match the
-      # one registered in the Vercel project's Deployment Checks settings.
+      # Secondary signal: sets a commit status to pending now (on the
+      # deployment's ref from the dispatch payload) and reports this job's
+      # final success/failure at cleanup. The gate Vercel actually requires is
+      # the `preflight` check run posted by the action below, not this status.
       - name: Report status to Vercel
         uses: vercel/repository-dispatch/actions/status@v1
         with:

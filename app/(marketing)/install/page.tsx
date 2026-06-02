@@ -78,9 +78,9 @@ jobs:
         </pre>
         <p className="mt-3 text-sm text-slate-500">
           Vercel fires this workflow when it finishes a production build. The scanner runs in your CI
-          and reports a commit status named{' '}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">Preflight Security Gate</code>{' '}
-          back to Vercel.
+          and posts a GitHub check named{' '}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">preflight</code>{' '}
+          — that’s the check you’ll require in the next step.
         </p>
       </>
     ),
@@ -92,15 +92,17 @@ jobs:
         <p>
           In Vercel, open{' '}
           <span className="font-medium text-slate-800">
-            Project → Settings → Deployment Checks
-          </span>{' '}
-          and add a check named exactly{' '}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">Preflight Security Gate</code>{' '}
-          — it must match the workflow name.
+            Project → Settings → Deployment Checks → Add Checks
+          </span>
+          . Select the{' '}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">preflight</code>{' '}
+          check — Vercel auto-discovers it from the workflow above, and its name comes from GitHub
+          (it isn’t editable here). Require it for Production and save.
         </p>
         <p className="mt-3">
-          That’s the gate. On every production deploy Vercel waits for that status; a HIGH finding
-          fails the run, the status goes red, and the promotion is held.
+          That’s the gate. On every production deploy Vercel waits for{' '}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">preflight</code>; a
+          HIGH finding fails the run, the check goes red, and the promotion is held.
         </p>
       </>
     ),

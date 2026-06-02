@@ -6,8 +6,8 @@ on:
 # PR-time security gate: posts the "preflight" check against the PR head so
 # branch protection can block merges on HIGH findings. Production promotion is
 # gated separately by vercel-deployment-check.yml, which Vercel triggers via
-# repository_dispatch — Vercel does NOT read these check runs directly. The gate
-# logic lives in action/report.mjs.
+# repository_dispatch; Vercel's Deployment Checks then gates on the `preflight`
+# check run. The gate logic lives in action/report.mjs.
 jobs:
   security-gate:
     runs-on: ubuntu-latest
