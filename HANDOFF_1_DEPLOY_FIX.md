@@ -124,7 +124,10 @@ GitHub → land on `/dashboard` with no 500. Then issue an API key and confirm i
    Drizzle queries are unaffected. It is fail-closed defense-in-depth — any non-owner role
    (e.g. a Supabase anon/authenticated connection) is denied until a policy is added.
 2. **Add the GitHub repo secret** `PREFLIGHT_API_KEY` (repo → Settings → Secrets and variables
-   → Actions → New repository secret). Both workflows pass it to `./action`.
+   → Actions → New repository secret). Both workflows pass it to the published action
+   `theartofthepossible2/preflight/action@v1` — the action lives in the `action/` subdir of this
+   public repo, and the workflows reference the published `@v1` tag rather than the local `./action`
+   form, so the gate dogfoods the exact action customers use.
 3. **Register the check in Vercel.** Project → Settings → **Deployment Checks** (confirm the
    exact location in the current dashboard) → add a check named **exactly**
    `Preflight Security Gate` — it must match the `name:` in `vercel-deployment-check.yml`.

@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: read # checkout
       statuses: write # status@v1 sets the commit status Vercel gates on
-      checks: write # ./action posts the detailed "preflight" check run
+      checks: write # the Preflight action posts the detailed "preflight" check run
     steps:
       # Sets the commit status to pending now (on the deployment's ref, read
       # from the dispatch payload); its post-step reports the final
@@ -38,6 +38,6 @@ jobs:
       # repository_dispatch example and avoids blocking promotion on a bad ref.
       - uses: actions/checkout@v4
 
-      - uses: ./action
+      - uses: theartofthepossible2/preflight/action@v1
         with:
           api-key: ${{ secrets.PREFLIGHT_API_KEY }}

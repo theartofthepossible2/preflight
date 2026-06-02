@@ -16,6 +16,6 @@ jobs:
       checks: write
     steps:
       - uses: actions/checkout@v4
-      - uses: ./action
+      - uses: theartofthepossible2/preflight/action@v1
         with:
           api-key: ${{ secrets.PREFLIGHT_API_KEY }}
