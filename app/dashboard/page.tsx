@@ -143,8 +143,8 @@ export default async function Dashboard() {
         </p>
         <pre style={{ fontSize: 12 }}>{WORKFLOW_YAML.trimEnd()}</pre>
         <p className="hint">
-          Then in Vercel → Project → Settings → Deployment Checks, add a check named{' '}
-          <code>Preflight Security Gate</code> to match the workflow.
+          Then in Vercel → Project → Settings → Deployment Checks, select the auto-discovered{' '}
+          <code>preflight</code> check and require it for Production.
         </p>
       </section>
     </main>
