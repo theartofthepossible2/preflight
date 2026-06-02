@@ -1,3 +1,60 @@
+/* Tailwind v4 — utilities + theme only, NO preflight/base reset.
+   This deliberately omits `@import "tailwindcss/preflight.css"` so Tailwind does
+   not reset the hand-rolled dark styles the /dashboard and /signin pages depend on.
+   Marketing pages opt into a light surface via their own route-group wrapper. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe6ff;
+  --color-brand-200: #bcd0ff;
+  --color-brand-300: #8eb1ff;
+  --color-brand-400: #5a87fb;
+  --color-brand-500: #356bf0;
+  --color-brand-600: #2152d8;
+  --color-brand-700: #1b41ae;
+  --color-brand-800: #1b3a8c;
+  --color-brand-900: #1c3570;
+  --color-ink-900: #0b0d10;
+  --color-ink-800: #14171c;
+  --color-ink-700: #1a1e25;
+  --color-ink-600: #262b34;
+}
+
+/* Scoped base reset for the light marketing surface only (class `.mkt`).
+   Lives in the `base` layer so utilities still win, and is scoped so the
+   dark /dashboard (which is NOT under `.mkt`) keeps its existing styling. */
+@layer base {
+  .mkt :where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, pre) {
+    margin: 0;
+  }
+  .mkt :where(ul, ol) {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .mkt :where(a) {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  .mkt :where(button) {
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .mkt :where(img, svg) {
+    display: block;
+    vertical-align: middle;
+  }
+  .mkt :where(summary) {
+    cursor: pointer;
+  }
+}
+
 :root {
   --bg: #0b0d10;
   --panel: #14171c;
