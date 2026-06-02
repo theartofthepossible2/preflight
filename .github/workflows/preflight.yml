@@ -1,14 +1,13 @@
 name: Preflight
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
-# Dogfood run on this repo. On pushes to main it posts the "preflight" check
-# against the production commit, so Vercel Deployment Checks can hold the
-# production promotion on HIGH findings (once enabled in Vercel settings). On
-# PRs it posts against the PR head. The gate logic lives in action/report.mjs.
+# PR-time security gate: posts the "preflight" check against the PR head so
+# branch protection can block merges on HIGH findings. Production promotion is
+# gated separately by vercel-deployment-check.yml, which Vercel triggers via
+# repository_dispatch — Vercel does NOT read these check runs directly. The gate
+# logic lives in action/report.mjs.
 jobs:
   security-gate:
     runs-on: ubuntu-latest

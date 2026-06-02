@@ -1,0 +1,43 @@
+name: Preflight Security Gate
+
+# Real production gate. When Vercel finishes building a deployment it fires a
+# `repository_dispatch` event at this repo; this workflow runs the Preflight
+# scan and reports a COMMIT STATUS that Vercel Deployment Checks reads to hold
+# (or allow) the production promotion. Vercel does NOT read GitHub check runs —
+# the commit status set by vercel/repository-dispatch/actions/status@v1 is the
+# signal it gates on.
+#
+# repository_dispatch only fires from workflows on the DEFAULT branch, so this
+# gate is inert until merged to main. Vercel-side setup (register the check name
+# below, enable the GitHub integration's dispatch events, add PREFLIGHT_API_KEY)
+# is documented in HANDOFF_1_DEPLOY_FIX.md.
+on:
+  repository_dispatch:
+    types:
+      - vercel.deployment.success
+
+jobs:
+  security-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
+      statuses: write # status@v1 sets the commit status Vercel gates on
+      checks: write # ./action posts the detailed "preflight" check run
+    steps:
+      # Sets the commit status to pending now (on the deployment's ref, read
+      # from the dispatch payload); its post-step reports the final
+      # success/failure from this job's outcome. The check name MUST match the
+      # one registered in the Vercel project's Deployment Checks settings.
+      - name: Report status to Vercel
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: Preflight Security Gate
+
+      # No explicit ref: scans the current default-branch source, which is the
+      # commit Vercel just built for production. Mirrors Vercel's documented
+      # repository_dispatch example and avoids blocking promotion on a bad ref.
+      - uses: actions/checkout@v4
+
+      - uses: ./action
+        with:
+          api-key: ${{ secrets.PREFLIGHT_API_KEY }}
