@@ -67,9 +67,19 @@ export function SiteFooter() {
             not a security certification or a substitute for a penetration test. Findings are labeled
             by confidence so you can see what is verified and what is inferred.
           </p>
-          <p className="mt-3 text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} Preflight.
-          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-400">
+              &copy; {new Date().getFullYear()} Space. All rights reserved.
+            </p>
+            <nav className="flex items-center gap-4 text-xs">
+              <Link href="/terms" className="text-slate-500 transition-colors hover:text-slate-900">
+                Terms of Service
+              </Link>
+              <Link href="/privacy" className="text-slate-500 transition-colors hover:text-slate-900">
+                Privacy Policy
+              </Link>
+            </nav>
+          </div>
         </div>
       </div>
     </footer>

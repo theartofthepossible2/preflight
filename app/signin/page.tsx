@@ -99,6 +99,20 @@ export default async function SignIn({
           </p>
         </div>
       </div>
+
+      <footer className="border-t border-slate-200">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-5 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <p>&copy; {new Date().getFullYear()} Space. All rights reserved.</p>
+          <nav className="flex items-center gap-4">
+            <Link href="/terms" className="transition-colors hover:text-slate-700">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="transition-colors hover:text-slate-700">
+              Privacy Policy
+            </Link>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }

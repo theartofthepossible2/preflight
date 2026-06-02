@@ -1,0 +1,75 @@
+Preflight Software License
+Copyright (c) 2026 Space. All rights reserved.
+
+This is a proprietary, source-available license. Read it before using the
+software in this repository.
+
+1. Definitions.
+   "Software" means the source code, configuration, documentation, and other
+   materials in this repository, including the Preflight scanner and the
+   Preflight GitHub Action (the "Action").
+   "Space," "we," or "us" means Space, the owner of the Software and operator
+   of the Preflight service.
+   "You" means the individual or entity exercising rights under this License.
+   "Terms" means the Preflight Terms of Service.
+
+2. Source availability, not open source.
+   The Software is published in source form for transparency and so that You
+   can run the Action in Your own continuous-integration environment by
+   referencing it (for example, via a GitHub Actions `uses:` directive).
+   Publishing the source does NOT place the Software in the public domain and
+   does NOT grant any open-source license.
+
+3. Limited license.
+   Subject to Your compliance with this License and the Terms, Space grants You
+   a personal, non-exclusive, non-transferable, non-sublicensable, revocable
+   license to invoke and execute the Action against repositories You own or are
+   authorized to act on, solely to use the Preflight service as intended. No
+   other rights are granted, whether by implication, estoppel, or otherwise.
+
+4. Restrictions.
+   Except to the limited extent expressly permitted in Section 3, You may not,
+   without Space's prior written permission:
+   (a) copy, reproduce, host, or store the Software, other than the transient
+       copying performed automatically by Your CI provider when running the
+       Action;
+   (b) modify, adapt, translate, or create derivative works of the Software;
+   (c) distribute, publish, sublicense, sell, rent, lease, or otherwise make
+       the Software available to any third party;
+   (d) use the Software, in whole or in part, to build, train, or operate any
+       product or service that competes with Preflight;
+   (e) remove, obscure, or alter any copyright, trademark, or other proprietary
+       notice; or
+   (f) reverse engineer, decompile, or disassemble the Software, except to the
+       extent this restriction is prohibited by applicable law.
+
+5. Trademarks.
+   "Preflight" and "Space," together with associated names and logos, are
+   trademarks of Space. This License grants no right to use them.
+
+6. Termination.
+   This License terminates automatically if You breach any of its terms or if
+   Your Preflight subscription or account ends. On termination You must stop all
+   use of the Software. Sections 4 through 9 survive termination.
+
+7. Disclaimer of warranty.
+   THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+   KIND, EXPRESS OR IMPLIED, INCLUDING THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. Preflight reports
+   posture against specific security controls; it is not a security
+   certification and does not guarantee detection of all vulnerabilities or
+   protection against any particular threat.
+
+8. Limitation of liability.
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, SPACE WILL NOT BE LIABLE FOR ANY
+   INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR EXEMPLARY DAMAGES, OR FOR
+   ANY LOSS OF PROFITS, REVENUE, DATA, OR GOODWILL, ARISING OUT OF OR RELATED TO
+   THE SOFTWARE OR THIS LICENSE, WHETHER IN CONTRACT, TORT, OR OTHERWISE, EVEN
+   IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+9. Governing law.
+   This License is governed by the laws of the United States of America, without
+   regard to its conflict-of-laws principles.
+
+For licensing inquiries beyond the scope of this License, contact
+admin@welcometospace.app.

@@ -1,4 +1,5 @@
 import { desc, eq } from 'drizzle-orm';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { db } from '@/db';
@@ -35,6 +36,7 @@ export default async function Dashboard() {
   ]);
 
   return (
+    <>
     <main>
       <header>
         <h1>Dashboard</h1>
@@ -142,5 +144,32 @@ jobs:
         </p>
       </section>
     </main>
+    <footer style={{ borderTop: '1px solid var(--border)', marginTop: 48 }}>
+      <div
+        style={{
+          maxWidth: 880,
+          margin: '0 auto',
+          padding: 20,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 12,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: 12,
+          color: 'var(--muted)',
+        }}
+      >
+        <span>&copy; {new Date().getFullYear()} Space. All rights reserved.</span>
+        <nav style={{ display: 'flex', gap: 16 }}>
+          <Link href="/terms" style={{ color: 'var(--accent)' }}>
+            Terms of Service
+          </Link>
+          <Link href="/privacy" style={{ color: 'var(--accent)' }}>
+            Privacy Policy
+          </Link>
+        </nav>
+      </div>
+    </footer>
+    </>
   );
 }
