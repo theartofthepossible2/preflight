@@ -2,7 +2,12 @@
 
 import { useState } from 'react';
 import type { ConnectInstallation, ConnectRepo, RepoSetupRow } from '@/lib/github/setup-data';
-import { attestGateAction, configureRepoAction, connectRepoAction } from './github-actions';
+import {
+  attestGateAction,
+  configureRepoAction,
+  connectRepoAction,
+  rotateRepoKeyAction,
+} from './github-actions';
 
 // The page passes a flattened, serializable view of the active gate provider so
 // this client never imports the server-only gate registry.
@@ -125,6 +130,26 @@ export function ConnectManager({
       return [updated, ...rest];
     });
     setSelected('');
+  }
+
+  async function onRotate(repoFullName: string) {
+    setBusy(repoFullName);
+    setError(null);
+    const form = new FormData();
+    form.append('repoFullName', repoFullName);
+    const res = await rotateRepoKeyAction(form);
+    setBusy(null);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    setSetups((prev) =>
+      prev.map((s) =>
+        s.repoFullName === repoFullName
+          ? { ...s, secretState: 'set', lastError: null, updatedAt: new Date().toISOString() }
+          : s,
+      ),
+    );
   }
 
   async function onAttest(repoFullName: string) {
@@ -259,6 +284,15 @@ export function ConnectManager({
                         onClick={() => runConfigure(s.repoFullName, s.installationId, true)}
                       >
                         Overwrite workflow
+                      </button>
+                    )}
+                    {s.secretState === 'set' && (
+                      <button
+                        type="button"
+                        disabled={!subscribed || isBusy}
+                        onClick={() => onRotate(s.repoFullName)}
+                      >
+                        {isBusy ? 'Working…' : 'Rotate key'}
                       </button>
                     )}
                   </div>

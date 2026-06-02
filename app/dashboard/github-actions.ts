@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/db';
 import { githubInstallations, repoSetups } from '@/db/schema';
-import { issueKey } from '@/lib/apiKey';
+import { issueKey, revokeKey } from '@/lib/apiKey';
 import { DEFAULT_GATE_PROVIDER } from '@/lib/gates';
 import { getInstallationOctokit, installUrl, isGithubAppConfigured } from '@/lib/github/app';
 import { ensureWorkflow } from '@/lib/github/contents';
@@ -154,6 +154,71 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
 
   if (lastError) return { error: lastError, workflowState, secretState };
   return { ok: true, workflowState, secretState };
+}
+
+// Rotates the per-repo PREFLIGHT_API_KEY: mints a new key, overwrites the repo
+// secret with it, then revokes the old one. Order matters — the repo always holds a
+// VALID token (old until the new secret lands, new after), so a failure mid-rotation
+// never leaves the customer's CI authenticating with a revoked key.
+export async function rotateRepoKeyAction(formData: FormData): Promise<ConfigureResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: 'Not signed in.' };
+  const userId = session.user.id;
+
+  if (!isGithubAppConfigured()) return { error: 'Automated setup is not enabled yet.' };
+
+  const subscription = await getSubscriptionState(userId);
+  if (!subscription.active) {
+    return { error: 'An active subscription is required to rotate a repository key.' };
+  }
+
+  const repoFullName = String(formData.get('repoFullName') ?? '').trim();
+  if (!repoFullName.includes('/')) return { error: 'Invalid repository.' };
+  const [owner, repo] = repoFullName.split('/');
+
+  // Rotation only applies to a repo whose secret is already set; otherwise there's
+  // nothing to rotate (run Configure first).
+  const [setup] = await db
+    .select()
+    .from(repoSetups)
+    .where(and(eq(repoSetups.userId, userId), eq(repoSetups.repoFullName, repoFullName)))
+    .limit(1);
+  if (!setup) return { error: 'That repository is not connected to your account.' };
+  if (setup.secretState !== 'set') {
+    return { error: 'Configure the repository before rotating its key.' };
+  }
+
+  // The installation must still be one this user owns.
+  const inst = await db
+    .select()
+    .from(githubInstallations)
+    .where(
+      and(
+        eq(githubInstallations.installationId, setup.installationId),
+        eq(githubInstallations.userId, userId),
+      ),
+    )
+    .limit(1);
+  if (!inst[0]) return { error: 'That installation is not connected to your account.' };
+
+  const oldApiKeyId = setup.apiKeyId;
+  try {
+    const octokit = await getInstallationOctokit(setup.installationId);
+    const issued = await issueKey(userId, `repo:${repoFullName}`);
+    // New secret goes live in the repo first; only then is the old key revoked.
+    await setRepoSecret(octokit, owner, repo, SECRET_NAME, issued.token);
+    await db
+      .update(repoSetups)
+      .set({ apiKeyId: issued.id, secretState: 'set', lastError: null, updatedAt: new Date() })
+      .where(and(eq(repoSetups.userId, userId), eq(repoSetups.repoFullName, repoFullName)));
+    if (oldApiKeyId) await revokeKey(userId, oldApiKeyId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Key rotation failed.';
+    return { error: message };
+  }
+
+  revalidatePath('/dashboard');
+  return { ok: true, secretState: 'set' };
 }
 
 // Manual attestation that the customer required the check on their deploy gate.
