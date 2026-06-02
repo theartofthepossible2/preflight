@@ -27,6 +27,7 @@ jobs:
   security-gate:
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       statuses: write
       checks: write
