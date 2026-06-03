@@ -87,7 +87,7 @@ export default function PrivacyPolicy() {
           We use third-party providers, acting as our processors, to host the Service, store data,
           process payments, and perform automated analysis of findings. These fall into the
           following categories: cloud hosting, managed database, payment processing, and automated
-          analysis (including AI) providers.
+          analysis providers.
         </p>
         <p>
           When findings are analyzed, the finding metadata and code snippets described above may be

@@ -88,8 +88,8 @@ export default async function Dashboard() {
         </div>
         <p className="hint">
           {subscription.active
-            ? 'AI-enriched findings are active on every scan.'
-            : 'Without an active subscription, the gate still runs; findings come back without AI analysis and the check posts a "subscription required for analysis" message instead of failing.'}
+            ? 'Enriched findings are active on every scan.'
+            : 'Without an active subscription, the gate still runs; findings come back without enrichment and the check posts a "subscription required for analysis" message instead of failing.'}
         </p>
         <BillingButtons subscribed={subscription.active} />
       </section>
@@ -126,7 +126,7 @@ export default async function Dashboard() {
                     {s.ref ?? 'unknown ref'}
                     {s.commitSha ? `@${s.commitSha.slice(0, 7)}` : ''}
                   </code>
-                  · {s.aiEnriched ? 'AI-enriched' : 'deterministic only'}
+                  · {s.aiEnriched ? 'enriched' : 'findings only'}
                   · {new Date(s.createdAt).toLocaleString()}
                 </div>
               </li>

@@ -1,4 +1,4 @@
-name: Preflight Security Gate
+name: Preflight
 
 # Real production gate. When Vercel finishes building a deployment it fires a
 # `repository_dispatch` event at this repo; this workflow runs the Preflight
@@ -31,7 +31,7 @@ jobs:
       - name: Report status to Vercel
         uses: vercel/repository-dispatch/actions/status@v1
         with:
-          name: Preflight Security Gate
+          name: preflight
 
       # No explicit ref: scans the current default-branch source, which is the
       # commit Vercel just built for production. Mirrors Vercel's documented

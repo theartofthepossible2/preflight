@@ -114,7 +114,7 @@ const pipeline = [
   {
     icon: IconGauge,
     title: 'Preflight scans',
-    body: 'A deterministic scanner inspects the source for known security regressions. No tokens, no access to your repo — and your code never leaves the runner.',
+    body: 'A deterministic scanner inspects the source for known security regressions. It runs on your own runner against your checked-out code, which never leaves your CI.',
   },
   {
     icon: IconBraces,
@@ -152,7 +152,7 @@ const faqs = [
   },
   {
     q: 'Do I have to manage any API keys?',
-    a: 'Just one: a PREFLIGHT_API_KEY repo secret so the Action can talk to the Preflight backend. There’s nothing else to configure and no model or provider credential to supply.',
+    a: 'Just one: a PREFLIGHT_API_KEY repo secret so the Action can talk to the Preflight backend. There’s nothing else to configure and no other credential to supply.',
   },
   {
     q: 'How does it actually block the deploy?',
@@ -226,7 +226,7 @@ export default function Home() {
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 text-rose-600">
                       <IconX width={13} height={13} />
                     </span>
-                    <span className="text-sm font-medium text-slate-800">Preflight / security-gate</span>
+                    <span className="text-sm font-medium text-slate-800">preflight</span>
                   </div>
                   <span className="rounded-md bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-600 ring-1 ring-inset ring-rose-600/20">
                     1 HIGH finding

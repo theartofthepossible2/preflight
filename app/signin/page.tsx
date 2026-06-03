@@ -85,9 +85,11 @@ export default async function SignIn({
             </form>
 
             <p className="mt-5 text-xs leading-relaxed text-slate-500">
-              GitHub is used for sign-in only. Preflight does not request repo access — the Action
-              runs inside your own CI with your repository’s built-in{' '}
+              GitHub sign-in is identity only — it grants no access to your code. The scan runs in
+              your own CI on your repository’s built-in{' '}
               <code className="rounded bg-slate-100 px-1 py-0.5 text-slate-600">GITHUB_TOKEN</code>.
+              One-click setup is optional: you separately authorize a scoped, per-repository GitHub
+              App to write the workflow file and secret.
             </p>
           </div>
 

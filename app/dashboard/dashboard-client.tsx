@@ -76,7 +76,7 @@ export function ApiKeyManager({ initialKeys }: { initialKeys: KeyRow[] }) {
 
       {issued && (
         <div
-          className="ai-status warn"
+          className="notice warn"
           style={{ marginTop: 12, padding: 12, border: '1px solid var(--medium)', borderRadius: 8 }}
         >
           <strong>Copy this now — it won&apos;t be shown again.</strong>

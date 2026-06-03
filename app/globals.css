@@ -129,10 +129,10 @@ header .disclaimer {
 .chip.low { color: var(--low); border-color: rgba(110, 208, 168, 0.3); }
 .chip.info { color: var(--info); }
 
-.ai-status {
+.notice {
   margin-top: 16px; font-size: 13px; color: var(--muted);
 }
-.ai-status.warn { color: var(--medium); }
+.notice.warn { color: var(--medium); }
 
 .findings { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
 

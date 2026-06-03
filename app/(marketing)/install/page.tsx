@@ -44,7 +44,7 @@ const steps = [
         </pre>
         <p className="mt-3 text-sm text-slate-500">
           This is the only key you ever manage — it lets the Action talk to Preflight. There is no
-          model or provider credential to supply.
+          other credential to supply.
         </p>
       </>
     ),
