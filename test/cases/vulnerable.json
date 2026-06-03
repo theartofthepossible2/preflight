@@ -1,0 +1,15 @@
+{
+  "__comment": "Fixture for the scanner parity test. Stored as JSON (not .ts/.sql) so Preflight's own self-scan never classifies these intentionally-insecure snippets as code. test/run.mjs materializes each entry into a temp dir with its real extension, substitutes __CRED__ placeholders with fake-but-matching tokens, runs the CLI + scan(), and asserts they agree. Every entry is designed to trip a check.",
+  "files": {
+    "lib/config.ts": "export const publicAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;\nexport const serviceRole = process.env.NEXT_PUBLIC_SERVICE_ROLE_KEY;\nexport const analytics = process.env.NEXT_PUBLIC_ANALYTICS_TOKEN;\nexport const dbUrl = 'postgres://app:s3cretpw@db.example.com:5432/app';\n",
+    "app/admin/panel.tsx": "'use client';\nimport { createClient } from '@supabase/supabase-js';\n// Pulls the service_role key into a client component — full DB access in the browser.\nexport const admin = createClient(url, process.env.SERVICE_ROLE_FALLBACK ?? 'service_role');\n",
+    "app/api/users/route.ts": "import { supabase } from '@/lib/db';\nexport async function GET() {\n  const { data } = await supabase.from('users').select('*');\n  return Response.json(data);\n}\n",
+    "app/actions/save.ts": "'use server';\nimport { supabase } from '@/lib/db';\nexport async function save(row) {\n  await supabase.from('profiles').insert(row);\n}\n",
+    "db/schema.sql": "create table profiles (id uuid primary key, user_id uuid, email text);\n\ncreate table public.posts (id uuid primary key, author uuid, body text);\nalter table public.posts enable row level security;\ncreate policy posts_all on public.posts for select using (true);\n",
+    "lib/db.ts": "import { Pool } from 'pg';\nexport const pool = new Pool();\nexport async function userById(id) {\n  return pool.query(`select * from users where id = ${id}`);\n}\n",
+    "lib/dyn.ts": "export function run(expr) {\n  return eval(expr);\n}\n",
+    "components/Post.tsx": "export function Post({ post }) {\n  return <div dangerouslySetInnerHTML={{ __html: post.body }} />;\n}\n",
+    "next.config.js": "/** @type {import('next').NextConfig} */\nconst nextConfig = {};\nmodule.exports = nextConfig;\n",
+    "lib/secrets.ts": "export const aws = '__AWS_KEY__';\nexport const gh = '__GH_TOKEN__';\nexport const stripe = '__STRIPE_KEY__';\nexport const slack = '__SLACK_TOKEN__';\nexport const pem = `__PEM_PRIVATE_KEY__`;\n"
+  }
+}

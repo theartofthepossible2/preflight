@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test": "node test/run.mjs",
+    "worker": "node scripts/worker.mjs",
     "preflight:cli": "node preflight.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

@@ -4,6 +4,8 @@
 // one copy is how the `theartofthepossible2/preflight/action@v1` contract stays
 // from silently drifting across those three surfaces.
 
+import { CHECK_NAME } from './check-name';
+
 // Path the workflow is committed to in the customer's repo.
 export const WORKFLOW_PATH = '.github/workflows/preflight.yml';
 
@@ -13,11 +15,12 @@ export const SECRET_NAME = 'PREFLIGHT_API_KEY';
 // Published action ref the workflow pins to.
 export const ACTION_REF = 'theartofthepossible2/preflight/action@v1';
 
-// The GitHub check the action posts; this is the check customers require in
-// Vercel's Deployment Checks settings. It is the single canonical name: the
-// action posts a check run by this name AND the vercel status step below is
-// labelled with it, so "the check" means the same thing on every surface.
-export const CHECK_NAME = 'preflight';
+// The GitHub check the action posts; this is the check customers require in Vercel's
+// Deployment Checks settings. The canonical constant now lives in ./check-name so the
+// v0.4 backend poster (lib/github/checks.ts) can share it without importing this
+// Action-only template; re-exported here so existing importers (lib/gates/*) keep
+// resolving `CHECK_NAME` from this module.
+export { CHECK_NAME };
 
 // Canonical file contents (with trailing newline — what gets written to the repo).
 // For on-page display, render `WORKFLOW_YAML.trimEnd()` to avoid a trailing blank line.

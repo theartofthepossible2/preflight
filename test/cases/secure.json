@@ -1,0 +1,11 @@
+{
+  "__comment": "The clean counterpart to vulnerable.json. Every file is written so that NO check fires: server-only secrets, public keys correctly prefixed, an authenticated route handler, RLS enabled with a scoped policy, configured security headers, parameterized queries, and sanitized HTML. The parity test asserts both the CLI and scan() find zero findings here.",
+  "files": {
+    "lib/config.ts": "export const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;\nexport const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;\nexport const publishable = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;\n",
+    "app/api/users/route.ts": "import { supabase } from '@/lib/db';\nexport async function GET() {\n  const { data: { user } } = await supabase.auth.getUser();\n  if (!user) return new Response('unauthorized', { status: 401 });\n  const { data } = await supabase.from('users').select('*').eq('owner', user.id);\n  return Response.json(data);\n}\n",
+    "db/schema.sql": "create table profiles (id uuid primary key, user_id uuid, email text);\nalter table profiles enable row level security;\ncreate policy profiles_self on profiles for select using (auth.uid() = user_id);\n",
+    "next.config.js": "/** @type {import('next').NextConfig} */\nconst nextConfig = {\n  async headers() {\n    return [\n      {\n        source: '/(.*)',\n        headers: [\n          { key: 'Content-Security-Policy', value: \"default-src 'self'\" },\n          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },\n          { key: 'X-Frame-Options', value: 'DENY' },\n        ],\n      },\n    ];\n  },\n};\nmodule.exports = nextConfig;\n",
+    "lib/db.ts": "import postgres from 'postgres';\nexport const sql = postgres(process.env.DATABASE_URL);\nexport const supabase = {};\nexport async function userById(id) {\n  return sql`select * from users where id = ${id}`;\n}\n",
+    "components/Post.tsx": "import DOMPurify from 'isomorphic-dompurify';\nexport function Post({ post }) {\n  return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.body) }} />;\n}\n"
+  }
+}

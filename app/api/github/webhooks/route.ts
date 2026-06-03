@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { githubInstallations, repoSetups } from '@/db/schema';
+import { enqueue, supersedeQueued } from '@/lib/queue';
 
 // GitHub App install-lifecycle webhook. Lives under /api/* so it bypasses the auth
 // middleware by design — GitHub POSTs here and authenticates via the HMAC signature,
@@ -22,10 +23,25 @@ interface WebhookRepo {
   id: number;
   full_name: string;
 }
+interface PushRepo extends WebhookRepo {
+  default_branch?: string;
+}
+interface PullRequestRef {
+  sha?: string;
+  ref?: string;
+  repo?: { id?: number } | null;
+}
 interface WebhookPayload {
   action?: string;
   installation?: { id: number };
   repositories_removed?: WebhookRepo[];
+  // push
+  ref?: string;
+  after?: string;
+  deleted?: boolean;
+  repository?: PushRepo;
+  // pull_request
+  pull_request?: { head?: PullRequestRef };
 }
 
 // Constant-time check of GitHub's X-Hub-Signature-256 ("sha256=<hex>") against the
@@ -73,6 +89,16 @@ export async function POST(req: Request): Promise<NextResponse> {
       case 'installation_repositories':
         if (Number.isInteger(installationId) && payload.action === 'removed') {
           await removeRepoSetups(installationId!, payload.repositories_removed ?? []);
+        }
+        break;
+      case 'push':
+        if (Number.isInteger(installationId)) {
+          await handlePush(payload, installationId!);
+        }
+        break;
+      case 'pull_request':
+        if (Number.isInteger(installationId)) {
+          await handlePullRequest(payload, installationId!);
         }
         break;
       // ping (sent on webhook creation) and everything else: just acknowledge.
@@ -131,4 +157,74 @@ async function removeRepoSetups(installationId: number, repos: WebhookRepo[]): P
         inArray(repoSetups.repoFullName, fullNames),
       ),
     );
+}
+
+// The installation is bound to exactly one Preflight account (the OAuth-verified setup
+// callback created the row). A scan job is attributed to that user for subscription /
+// billing. Returns null when the install is unknown or suspended — we then ack and do
+// nothing (no user to attribute, no grant to act on).
+const ZERO_SHA = /^0+$/;
+const PR_ENQUEUE_ACTIONS = new Set(['opened', 'synchronize', 'reopened']);
+
+async function resolveInstallationUser(installationId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ userId: githubInstallations.userId, suspendedAt: githubInstallations.suspendedAt })
+    .from(githubInstallations)
+    .where(eq(githubInstallations.installationId, installationId))
+    .limit(1);
+  if (!row || row.suspendedAt) return null;
+  return row.userId;
+}
+
+// Push to the default branch -> enqueue a scan of the new HEAD. Non-default branches are
+// ignored (their PRs drive scanning instead); branch deletions (zero sha) are skipped. We
+// only enqueue here — never scan inline — so GitHub gets its <10s ack.
+async function handlePush(payload: WebhookPayload, installationId: number): Promise<void> {
+  const repo = payload.repository;
+  const headSha = payload.after;
+  if (!repo?.id || !repo.full_name || !repo.default_branch) return;
+  if (payload.deleted || !headSha || ZERO_SHA.test(headSha)) return;
+  if (payload.ref !== `refs/heads/${repo.default_branch}`) return;
+
+  const userId = await resolveInstallationUser(installationId);
+  if (!userId) return;
+
+  const key = { installationId, repoFullName: repo.full_name, ref: payload.ref, isPullRequest: false };
+  await supersedeQueued(key, headSha);
+  await enqueue({
+    installationId,
+    repoFullName: repo.full_name,
+    repoId: repo.id,
+    headSha,
+    ref: payload.ref,
+    isPullRequest: false,
+    userId,
+  });
+}
+
+// PR opened/synchronize/reopened -> enqueue a scan of the PR HEAD commit. Fork PRs (head
+// commit lives in another repo) are deferred: the installation token + tarball are scoped
+// to the base repo, so the head sha may not resolve there. Same-repo branch PRs — the
+// common case for our customers — are covered.
+async function handlePullRequest(payload: WebhookPayload, installationId: number): Promise<void> {
+  if (!payload.action || !PR_ENQUEUE_ACTIONS.has(payload.action)) return;
+  const repo = payload.repository;
+  const head = payload.pull_request?.head;
+  if (!repo?.id || !repo.full_name || !head?.sha || !head.ref) return;
+  if (head.repo?.id !== repo.id) return; // fork PR — deferred (see above)
+
+  const userId = await resolveInstallationUser(installationId);
+  if (!userId) return;
+
+  const key = { installationId, repoFullName: repo.full_name, ref: head.ref, isPullRequest: true };
+  await supersedeQueued(key, head.sha);
+  await enqueue({
+    installationId,
+    repoFullName: repo.full_name,
+    repoId: repo.id,
+    headSha: head.sha,
+    ref: head.ref,
+    isPullRequest: true,
+    userId,
+  });
 }

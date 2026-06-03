@@ -111,10 +111,18 @@ export const scans = pgTable(
     userId: text('userId')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    // Null for v0.3 Action-path scans (driven by an API key); set for v0.4 backend scans.
     apiKeyId: text('apiKeyId').references(() => apiKeys.id, { onDelete: 'set null' }),
+    // The GitHub App installation a v0.4 backend scan ran under. Null for the v0.3 path.
+    // Together with `repo` and `isPullRequest = false` it scopes the regression baseline.
+    installationId: integer('installationId'),
     repo: text('repo'),
     ref: text('ref'),
     commitSha: text('commitSha'),
+    // True for a PR-head scan. PR scans are recorded for history but NEVER serve as a
+    // baseline — only default-branch scans do — so a PR's findings can't poison the
+    // diff a later push is judged against.
+    isPullRequest: boolean('isPullRequest').notNull().default(false),
     findingsCount: integer('findingsCount').notNull().default(0),
     highCount: integer('highCount').notNull().default(0),
     aiEnriched: boolean('aiEnriched').notNull().default(false),
@@ -125,6 +133,8 @@ export const scans = pgTable(
   (t) => ({
     userIdx: index('scan_user_idx').on(t.userId),
     createdIdx: index('scan_created_idx').on(t.createdAt),
+    // Serves the regression baseline lookup: latest default-branch scan of a repo.
+    baselineIdx: index('scan_baseline_idx').on(t.installationId, t.repo, t.isPullRequest, t.createdAt),
   }),
 );
 
@@ -200,6 +210,54 @@ export const repoSetups = pgTable(
   (t) => ({
     userRepoIdx: uniqueIndex('repo_setup_user_repo_idx').on(t.userId, t.repoFullName),
     userIdx: index('repo_setup_user_idx').on(t.userId),
+  }),
+);
+
+// ---------- v0.4 scan queue ----------
+
+// Durable work queue for backend scans. The webhook (push/PR) enqueues one row per
+// commit; a worker claims it with FOR UPDATE SKIP LOCKED, runs lib/scan-run, and marks
+// it done/dead. Carries no source — only the coordinates needed to fetch + scan + post.
+//
+// State machine: queued -> running -> done | error | dead.
+//   queued   waiting for a worker.
+//   running  claimed; `claimedAt` doubles as the lease (a crashed worker's row is
+//            reclaimable once the lease expires, so a job is never lost).
+//   error    an attempt failed and will retry after exponential backoff (< maxAttempts).
+//   done     completed; the `preflight` check was posted.
+//   dead     exhausted retries; left for inspection (never silently dropped).
+// See lib/queue.ts for the claim/backoff/dead-letter logic.
+export const scanJobs = pgTable(
+  'scan_job',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    installationId: integer('installationId').notNull(),
+    // 'owner/name'.
+    repoFullName: text('repoFullName').notNull(),
+    // GitHub numeric repo id — the idempotency key together with headSha.
+    repoId: integer('repoId').notNull(),
+    headSha: text('headSha').notNull(),
+    ref: text('ref').notNull(),
+    isPullRequest: boolean('isPullRequest').notNull().default(false),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // queued | running | done | error | dead
+    status: text('status').notNull().default('queued'),
+    attempts: integer('attempts').notNull().default(0),
+    // The check run opened for this job, recorded so a retry reuses it instead of
+    // opening a duplicate in_progress check on the same commit.
+    checkRunId: integer('checkRunId'),
+    lastError: text('lastError'),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    claimedAt: timestamp('claimedAt', { mode: 'date' }),
+    finishedAt: timestamp('finishedAt', { mode: 'date' }),
+  },
+  (t) => ({
+    // Claim ordering: filter by status, take the oldest first.
+    statusCreatedIdx: index('scan_job_status_created_idx').on(t.status, t.createdAt),
+    // Idempotency: one job per (repo, commit). A redelivered webhook is a no-op insert.
+    repoShaIdx: uniqueIndex('scan_job_repo_sha_idx').on(t.repoId, t.headSha),
   }),
 );
 

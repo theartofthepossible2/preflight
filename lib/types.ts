@@ -1,6 +1,6 @@
 export type Severity = 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 export type Confidence = 'definitive' | 'heuristic';
-export type AsvsCategory = 'ACCESS' | 'SECRETS' | 'CONFIG';
+export type AsvsCategory = 'ACCESS' | 'SECRETS' | 'CONFIG' | 'INJECTION';
 
 export interface Finding {
   id: string;
