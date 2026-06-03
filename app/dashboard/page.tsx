@@ -126,6 +126,7 @@ export default async function Dashboard() {
           fullName: r.fullName,
           defaultBranch: r.defaultBranch,
         }))}
+        subscribed={subscription.active}
       />
 
       <section className="uploader">

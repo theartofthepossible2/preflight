@@ -2,6 +2,7 @@ import type { AnalyzedFinding } from '@/lib/types';
 import { ASVS_VERSION } from '@/lib/asvs';
 import { type AreaPosture, type PostureLevel, LEVEL_META, buildPosture, overallLevel } from '@/lib/asvs/posture';
 import { ScanNow, type ScanNowRepo } from './scan-now';
+import { AreaGuidance } from './area-guidance';
 
 // The redesigned dashboard centerpiece: a project's security posture organized by ASVS
 // area. The level chips (Safe / Safer available / Vulnerable) are deterministic — derived
@@ -27,9 +28,11 @@ const LEVEL_COLOR: Record<PostureLevel, string> = {
 export function SecurityPosture({
   scan,
   repos,
+  subscribed,
 }: {
   scan: PostureScan | null;
   repos: ScanNowRepo[];
+  subscribed: boolean;
 }) {
   if (!scan) {
     return (
@@ -66,14 +69,22 @@ export function SecurityPosture({
 
       <div style={{ marginTop: 8 }}>
         {areas.map((area) => (
-          <Area key={area.category} area={area} aiEnriched={scan.aiEnriched} />
+          <Area key={area.category} area={area} aiEnriched={scan.aiEnriched} subscribed={subscribed} />
         ))}
       </div>
     </section>
   );
 }
 
-function Area({ area, aiEnriched }: { area: AreaPosture; aiEnriched: boolean }) {
+function Area({
+  area,
+  aiEnriched,
+  subscribed,
+}: {
+  area: AreaPosture;
+  aiEnriched: boolean;
+  subscribed: boolean;
+}) {
   const meta = LEVEL_META[area.level];
   const summary =
     area.level === 'safe'
@@ -106,6 +117,7 @@ function Area({ area, aiEnriched }: { area: AreaPosture; aiEnriched: boolean }) 
           {area.findings.map((f) => (
             <FindingCard key={f.id} finding={f} aiEnriched={aiEnriched} />
           ))}
+          <AreaGuidance category={area.category} subscribed={subscribed} />
         </div>
       ) : (
         <ul
