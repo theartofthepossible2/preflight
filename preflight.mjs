@@ -38,6 +38,7 @@ const ASVS = {
   ACCESS: 'ASVS: Authorization & Access Control',
   SECRETS: 'ASVS: Configuration & Secret Management',
   CONFIG: 'ASVS: Security Configuration',
+  INJECTION: 'ASVS: Validation, Sanitization & Encoding',
 };
 
 // ---------- file walking ----------
@@ -295,12 +296,127 @@ function checkHeaders(p) {
   }
 }
 
+// ========== Check E: hardcoded credentials (known token formats) ==========
+// Each pattern matches a vendor-specific, high-entropy credential whose natural
+// false-positive rate is near zero. We never echo the matched value into a finding.
+const CRED_PATTERNS = [
+  { label: 'an AWS access key id', re: /\bAKIA[0-9A-Z]{16}\b/ },
+  { label: 'a GitHub access token', re: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/ },
+  { label: 'a Stripe secret key', re: /\b[sr]k_live_[0-9a-zA-Z]{16,}\b/ },
+  { label: 'a Slack token', re: /\bxox[baprs]-[0-9A-Za-z-]{10,}\b/ },
+];
+// PEM private-key header, assembled from fragments so this scanner never flags its
+// own rule definition when it runs over a checkout that vendors preflight.mjs.
+const PEM_PRIVATE_KEY = new RegExp('-----BEGIN[A-Z ]*PRIVATE' + ' KEY' + '-----');
+// Files that legitimately carry sample/redacted values — don't cry wolf on those.
+const isExampleFile = (rel) => /(^|[./])(example|sample|template|fixture|mock)s?([./]|$)/i.test(rel);
+
+function checkHardcodedCreds(p) {
+  for (const f of p.code) {
+    const rel = p.rel(f);
+    if (isExampleFile(rel)) continue;
+    const c = p.read(f);
+    for (const { label, re } of CRED_PATTERNS) {
+      const m = re.exec(c);
+      if (!m) continue;
+      add({
+        severity: SEV.HIGH, asvs: ASVS.SECRETS,
+        title: 'Hardcoded credential committed to source',
+        file: rel, line: lineAt(c, m.index),
+        detail: `A value matching the format of ${label} appears directly in source. Committed credentials are readable by anyone with repository access and persist in git history even after the line is removed.`,
+        remediation: 'Move it to a server-side environment variable and rotate the exposed credential immediately.',
+      });
+    }
+    const pem = PEM_PRIVATE_KEY.exec(c);
+    if (pem) {
+      add({
+        severity: SEV.HIGH, asvs: ASVS.SECRETS,
+        title: 'Private key committed to source',
+        file: rel, line: lineAt(c, pem.index),
+        detail: 'A PEM private-key block appears directly in source. Anyone with repository access holds the key, and it persists in git history even after the line is removed.',
+        remediation: 'Remove the key from the repository, store it in a secret manager, and rotate the key pair.',
+      });
+    }
+  }
+}
+
+// ========== Check F: SQL built by concatenation/interpolation (HEURISTIC) ==========
+// A query method whose argument starts with a back-tick template that interpolates,
+// or a quoted string immediately concatenated. Tagged-template clients (the sql``
+// helper, postgres.js) parameterize and never start the arg with a back-tick, so
+// they are not matched here.
+const RAW_QUERY = /\.(?:query|execute|unsafe|raw)\s*\(\s*(?:`[^`]*\$\{|['"][^'"]*['"]\s*\+)/;
+function checkSqlInjection(p) {
+  for (const f of p.code) {
+    const c = p.read(f);
+    const rel = p.rel(f);
+    const re = new RegExp(RAW_QUERY.source, 'g');
+    let m;
+    while ((m = re.exec(c))) {
+      add({
+        severity: SEV.MEDIUM, asvs: ASVS.INJECTION, confidence: CONF.HEURISTIC,
+        title: 'SQL query assembled by string concatenation or interpolation',
+        file: rel, line: lineAt(c, m.index),
+        detail: 'A database query argument is built from a template literal or a concatenated string. If any interpolated part is caller-controlled, this is a SQL injection vector. (Tagged-template clients that parameterize their inputs are not flagged.)',
+        remediation: 'Pass values as parameterized query placeholders instead of building the SQL string yourself.',
+      });
+    }
+  }
+}
+
+// ========== Check G: dynamic code execution (HEURISTIC) ==========
+const DYN_EXEC = /\beval\s*\(|\bnew\s+Function\s*\(/;
+function checkDynamicExec(p) {
+  for (const f of p.code) {
+    const c = p.read(f);
+    const rel = p.rel(f);
+    const re = new RegExp(DYN_EXEC.source, 'g');
+    let m;
+    while ((m = re.exec(c))) {
+      add({
+        severity: SEV.MEDIUM, asvs: ASVS.INJECTION, confidence: CONF.HEURISTIC,
+        title: 'Dynamic code execution',
+        file: rel, line: lineAt(c, m.index),
+        detail: 'Code is executed from a string at runtime. If any part of that string is caller-controlled, it is a remote code execution vector.',
+        remediation: 'Remove the dynamic evaluation; use a data structure, lookup table, or explicit parser instead of executing constructed code.',
+      });
+    }
+  }
+}
+
+// ========== Check H: unsanitized raw-HTML rendering (HEURISTIC) ==========
+const DSI = /dangerouslySetInnerHTML\s*=\s*\{\{[^}]*__html\s*:\s*([^}]+)\}\}/;
+function checkXss(p) {
+  for (const f of p.code) {
+    const c = p.read(f);
+    const rel = p.rel(f);
+    const re = new RegExp(DSI.source, 'g');
+    let m;
+    while ((m = re.exec(c))) {
+      const expr = m[1];
+      if (/^\s*['"`]/.test(expr)) continue;                       // static string literal
+      if (/sanitiz|dompurify|purify|escapehtml/i.test(expr)) continue; // already sanitized
+      add({
+        severity: SEV.MEDIUM, asvs: ASVS.INJECTION, confidence: CONF.HEURISTIC,
+        title: 'Raw HTML rendered from a non-constant value',
+        file: rel, line: lineAt(c, m.index),
+        detail: 'A non-constant value is rendered as raw HTML via dangerouslySetInnerHTML. If any part is caller-controlled and unsanitized, this is a cross-site scripting (XSS) vector.',
+        remediation: 'Sanitize the HTML with a vetted sanitizer before rendering, or render the value as text instead of raw HTML.',
+      });
+    }
+  }
+}
+
 // ========== run ==========
 const project = loadProject(root);
 checkSecretExposure(project);
 checkRls(project);
 checkEntryPoints(project);
 checkHeaders(project);
+checkHardcodedCreds(project);
+checkSqlInjection(project);
+checkDynamicExec(project);
+checkXss(project);
 
 const counts = { HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
 for (const f of findings) counts[f.severity]++;
