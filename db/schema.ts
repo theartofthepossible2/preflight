@@ -129,7 +129,7 @@ export const scans = pgTable(
 );
 
 // Content-hash cache: avoids re-billing for unchanged flagged code.
-// cacheKey = sha256(finding.id + finding.codeSnippet) — see lib/cache.ts.
+// cacheKey = sha256(finding.id + codeSnippet + detail) — see lib/cache.ts.
 export const analysisCache = pgTable(
   'analysis_cache',
   {

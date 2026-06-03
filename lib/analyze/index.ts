@@ -6,6 +6,12 @@ import type {
   Severity,
 } from '../types';
 import { primaryRequirement } from '../asvs';
+import {
+  cacheKeyFor,
+  enrichmentOf,
+  getCachedEnrichments,
+  putCachedEnrichments,
+} from '../cache';
 import { SYSTEM_PROMPT, buildUserMessage } from './prompt';
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
@@ -93,17 +99,39 @@ export async function analyzeFindings(findings: Finding[]): Promise<AnalyzeResul
     return { analyzed: [], additionalObservations: [], status: 'ok' };
   }
 
+  const model = process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL;
+
+  // --- content-hash cache: reuse stored enrichment for unchanged findings ---
+  const keys = findings.map((f) => cacheKeyFor(f));
+  const cached = await getCachedEnrichments(keys, model);
+  const fromCache = (i: number): AnalyzedFinding | null => {
+    const hit = cached.get(keys[i]);
+    return hit ? { ...findings[i], ...hit } : null;
+  };
+  const uncached = findings
+    .map((f, i) => ({ f, i }))
+    .filter(({ i }) => !cached.has(keys[i]));
+
+  // Everything served from cache -> no model call, no spend.
+  if (uncached.length === 0) {
+    return {
+      analyzed: findings.map((_, i) => fromCache(i)!),
+      additionalObservations: [],
+      status: 'ok',
+    };
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
-      analyzed: findings.map(toUnanalyzed),
+      analyzed: findings.map((f, i) => fromCache(i) ?? toUnanalyzed(f)),
       additionalObservations: [],
       status: 'unavailable',
       error: 'ANTHROPIC_API_KEY not configured',
     };
   }
 
-  const enriched = findings.map((f) => {
+  const enriched = uncached.map(({ f }) => {
     const req = primaryRequirement(f.asvsCategory);
     return {
       id: f.id,
@@ -121,7 +149,6 @@ export async function analyzeFindings(findings: Finding[]): Promise<AnalyzeResul
   });
 
   const client = new Anthropic({ apiKey });
-  const model = process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL;
 
   try {
     const response = await client.messages.create({
@@ -139,7 +166,7 @@ export async function analyzeFindings(findings: Finding[]): Promise<AnalyzeResul
     );
     if (!toolBlock) {
       return {
-        analyzed: findings.map(toUnanalyzed),
+        analyzed: findings.map((f, i) => fromCache(i) ?? toUnanalyzed(f)),
         additionalObservations: [],
         status: 'unavailable',
         error: 'Model did not call submit_analysis',
@@ -149,30 +176,45 @@ export async function analyzeFindings(findings: Finding[]): Promise<AnalyzeResul
     const output = toolBlock.input as ToolOutput;
     const byId = new Map(output.findings.map((f) => [f.id, f]));
 
-    const analyzed: AnalyzedFinding[] = findings.map((f) => {
+    // Analyze only the uncached findings (model result where present, deterministic
+    // fallback otherwise), keyed by original index for the merge and cache write.
+    const freshByIndex = new Map<number, AnalyzedFinding>();
+    for (const { f, i } of uncached) {
       const match = byId.get(f.id);
       const req = primaryRequirement(f.asvsCategory);
       const asvsRequirement = req
         ? { id: req.id, title: req.title }
         : { id: 'unknown', title: f.asvsCategory };
-      if (!match) {
-        return {
-          ...f,
-          asvsRequirement,
-          isLikelyRealIssue: f.confidence === 'definitive' ? 'high' : 'medium',
-          explanation: f.detail,
-          remediation_steps: [f.remediation],
-        };
-      }
-      return {
-        ...f,
-        asvsRequirement,
-        isLikelyRealIssue: match.isLikelyRealIssue,
-        explanation: match.explanation,
-        remediation_steps: match.remediation,
-        codeFixExample: match.codeFixExample,
-      };
-    });
+      freshByIndex.set(
+        i,
+        match
+          ? {
+              ...f,
+              asvsRequirement,
+              isLikelyRealIssue: match.isLikelyRealIssue,
+              explanation: match.explanation,
+              remediation_steps: match.remediation,
+              codeFixExample: match.codeFixExample,
+            }
+          : {
+              ...f,
+              asvsRequirement,
+              isLikelyRealIssue: f.confidence === 'definitive' ? 'high' : 'medium',
+              explanation: f.detail,
+              remediation_steps: [f.remediation],
+            },
+      );
+    }
+
+    // Persist only model-produced enrichments (never the deterministic fallbacks).
+    await putCachedEnrichments(
+      uncached
+        .filter(({ f }) => byId.has(f.id))
+        .map(({ i }) => ({ key: keys[i], enrichment: enrichmentOf(freshByIndex.get(i)!) })),
+      model,
+    );
+
+    const analyzed = findings.map((_, i) => fromCache(i) ?? freshByIndex.get(i)!);
 
     const additionalObservations: AdditionalObservation[] = (output.additionalObservations ?? []).map(
       (o) => ({ ...o, confidence: 'inferred' as const }),
@@ -181,7 +223,7 @@ export async function analyzeFindings(findings: Finding[]): Promise<AnalyzeResul
     return { analyzed, additionalObservations, status: 'ok' };
   } catch (err) {
     return {
-      analyzed: findings.map(toUnanalyzed),
+      analyzed: findings.map((f, i) => fromCache(i) ?? toUnanalyzed(f)),
       additionalObservations: [],
       status: 'unavailable',
       error: err instanceof Error ? err.message : String(err),
