@@ -1,6 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { githubInstallations, repoSetups } from '@/db/schema';
+import { getGateProvider } from '@/lib/gates';
+import { getVercelConnectionMeta } from '@/lib/gates/vercel-connection';
 import { getInstallationOctokit, isGithubAppConfigured } from './app';
 
 // Server-only loader for the dashboard Connect section. Shapes DB rows + (best
@@ -77,6 +79,10 @@ export async function loadConnectState(userId: string): Promise<ConnectState> {
     updatedAt: r.updatedAt.toISOString(),
   }));
 
+  // Best-effort: re-verify gates against the provider when the user has a connection.
+  // Mutates `setups` in place to reflect any state that was just confirmed.
+  await reverifyGates(userId, setupRows, setups);
+
   // Accessible repos require GitHub API calls — fail soft so a misconfigured App
   // or GitHub outage degrades to "no repos listed" instead of a 500.
   const repos: ConnectRepo[] = [];
@@ -102,4 +108,58 @@ export async function loadConnectState(userId: string): Promise<ConnectState> {
   }
 
   return { configured, installations, repos, setups };
+}
+
+// How long a gate's verification is trusted before we re-check on load.
+const GATE_RECHECK_MS = 5 * 60 * 1000;
+
+// Re-verify deploy gates on dashboard load, but only when the user actually has a
+// provider connection — so the common (unconnected) case adds a single cheap lookup
+// and no network calls. Verification is non-downgrading: it only ever *upgrades* a
+// gate to 'required' on positive confirmation, and always bumps gateLastCheckedAt to
+// throttle. It never clobbers a manual attestation or writes a transient error onto
+// gateState. Every step is best-effort; failures leave the rendered state as-is.
+async function reverifyGates(
+  userId: string,
+  rows: (typeof repoSetups.$inferSelect)[],
+  view: RepoSetupRow[],
+): Promise<void> {
+  // Today only the Vercel adapter has a stored connection; gate the whole pass on it
+  // so users without one pay nothing beyond this lookup. Workstream B generalizes this
+  // to "any provider connection exists".
+  const meta = await getVercelConnectionMeta(userId);
+  if (!meta) return;
+
+  const now = Date.now();
+  const due = rows.filter((r) => {
+    if (r.gateProvider !== 'vercel') return false; // no connection for other providers yet
+    if (r.gateState === 'required') return false; // already satisfied; can't detect removal
+    const last = r.gateLastCheckedAt ? r.gateLastCheckedAt.getTime() : 0;
+    return now - last >= GATE_RECHECK_MS;
+  });
+  if (due.length === 0) return;
+
+  await Promise.allSettled(
+    due.map(async (r) => {
+      const state = await getGateProvider(r.gateProvider).verifyRequired({
+        repoFullName: r.repoFullName,
+        defaultBranch: r.defaultBranch ?? undefined,
+        userId,
+      });
+      const checkedAt = new Date();
+      const confirmed = state === 'required';
+      await db
+        .update(repoSetups)
+        .set(
+          confirmed
+            ? { gateState: 'required', gateLastCheckedAt: checkedAt, updatedAt: checkedAt }
+            : { gateLastCheckedAt: checkedAt },
+        )
+        .where(and(eq(repoSetups.userId, userId), eq(repoSetups.repoFullName, r.repoFullName)));
+      if (confirmed) {
+        const v = view.find((s) => s.repoFullName === r.repoFullName);
+        if (v) v.gateState = 'required';
+      }
+    }),
+  );
 }

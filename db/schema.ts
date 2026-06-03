@@ -235,3 +235,30 @@ export const stripeEvents = pgTable('stripe_event', {
   type: text('type').notNull(),
   receivedAt: timestamp('receivedAt', { mode: 'date' }).notNull().defaultNow(),
 });
+
+// ---------- Deploy-gate provider connections ----------
+
+// One row per user who has connected a Vercel API token so the gate can be verified
+// against Vercel's API. The raw token is NEVER stored — only its AES-256-GCM
+// ciphertext (see lib/crypto.ts). teamId/projectId are non-secret identifiers used to
+// scope API calls and build deep links. Reused-by-design: Netlify/Cloudflare adapters
+// (Workstream B) get their own connection tables following this shape.
+export const vercelConnections = pgTable(
+  'vercel_connection',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // AES-256-GCM ciphertext (iv.tag.ciphertext, base64url) of the Vercel API token.
+    tokenCipher: text('tokenCipher').notNull(),
+    // Vercel team id (null for a personal account) and the project the gate applies to.
+    teamId: text('teamId'),
+    projectId: text('projectId'),
+    createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: uniqueIndex('vercel_connection_user_idx').on(t.userId),
+  }),
+);

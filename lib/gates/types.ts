@@ -9,6 +9,10 @@ export interface GateContext {
   // Default branch the provider treats as "production" for the gate. Optional —
   // adapters that don't need it ignore it.
   defaultBranch?: string;
+  // Owner of the setup, used to resolve a stored provider connection (token) for
+  // server-side verification. Server-only — never include it in any descriptor that
+  // crosses to the client.
+  userId?: string;
   // Provider-side identity, populated as adapters gain real API access. Generic
   // names so one shape serves Vercel (project/team), Netlify (site) and Cloudflare
   // Pages (account/project) without a separate context type per provider.
