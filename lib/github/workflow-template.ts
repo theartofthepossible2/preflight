@@ -49,4 +49,5 @@ jobs:
       - uses: ${ACTION_REF}
         with:
           api-key: \${{ secrets.${SECRET_NAME} }}
+          commit-sha: \${{ github.event.client_payload.git.sha }}
 `;

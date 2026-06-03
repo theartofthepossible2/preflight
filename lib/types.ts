@@ -34,7 +34,7 @@ export interface AnalyzedFinding extends Finding {
 export interface AdditionalObservation {
   description: string;
   severity: Severity;
-  confidence: 'model-inferred';
+  confidence: 'inferred';
 }
 
 export interface ScanResponse {
@@ -43,12 +43,12 @@ export interface ScanResponse {
   counts: Record<Severity, number>;
   findings: AnalyzedFinding[];
   additionalObservations?: AdditionalObservation[];
-  aiEnrichment: 'ok' | 'unavailable';
-  aiError?: string;
+  enrichment: 'ok' | 'unavailable';
+  enrichmentError?: string;
   disclaimer: string;
 }
 
 export const DISCLAIMER =
-  'Posture check against specific controls — not an ASVS compliance certification. Heuristic findings will be made precise once the connectivity-graph engine lands. AI enrichment explains findings; it does not decide whether they exist.';
+  'Posture check against specific controls — not an ASVS compliance certification. Heuristic findings will be made precise once the connectivity-graph engine lands. Enrichment adds explanation and context; it does not decide whether a finding exists.';
 
 export const SEV_ORDER: Severity[] = ['HIGH', 'MEDIUM', 'LOW', 'INFO'];

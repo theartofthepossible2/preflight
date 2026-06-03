@@ -38,6 +38,9 @@ jobs:
       # repository_dispatch example and avoids blocking promotion on a bad ref.
       - uses: actions/checkout@v4
 
+      # commit-sha pins the check run to the exact deployed commit from the
+      # dispatch payload (falls back to GITHUB_SHA when the field is absent).
       - uses: theartofthepossible2/preflight/action@v1
         with:
           api-key: ${{ secrets.PREFLIGHT_API_KEY }}
+          commit-sha: ${{ github.event.client_payload.git.sha }}

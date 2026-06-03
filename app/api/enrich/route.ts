@@ -75,21 +75,26 @@ export async function POST(req: Request) {
     remediation_steps: [f.remediation],
   }));
   let additionalObservations: ScanResponse['additionalObservations'] = undefined;
-  let aiEnrichment: 'ok' | 'unavailable' = 'unavailable';
-  let aiError: string | undefined;
+  let enrichment: 'ok' | 'unavailable' = 'unavailable';
+  let enrichmentError: string | undefined;
 
   if (!subscription.active) {
-    aiError = 'subscription_required';
+    enrichmentError = 'subscription_required';
   } else if (findings.length > 0) {
     const analysis = await analyzeFindings(findings);
     analyzed = analysis.analyzed;
     additionalObservations = analysis.additionalObservations.length
       ? analysis.additionalObservations
       : undefined;
-    aiEnrichment = analysis.status;
-    aiError = analysis.error;
+    enrichment = analysis.status;
+    if (analysis.status === 'unavailable') {
+      // Only a safe, provider-agnostic token crosses the wire; the raw reason can
+      // name internal services, so it stays in server logs (never the response).
+      enrichmentError = 'unavailable';
+      if (analysis.error) console.warn(`enrich: analysis unavailable — ${analysis.error}`);
+    }
   } else {
-    aiEnrichment = 'ok';
+    enrichment = 'ok';
   }
 
   const counts = analyzed.reduce(
@@ -108,7 +113,7 @@ export async function POST(req: Request) {
     commitSha,
     findingsCount: analyzed.length,
     highCount: counts.HIGH,
-    aiEnriched: aiEnrichment === 'ok' && findings.length > 0,
+    aiEnriched: enrichment === 'ok' && findings.length > 0,
     findings: analyzed,
     additionalObservations: additionalObservations ?? null,
   });
@@ -119,8 +124,8 @@ export async function POST(req: Request) {
     counts,
     findings: analyzed,
     additionalObservations,
-    aiEnrichment,
-    aiError,
+    enrichment,
+    enrichmentError,
     disclaimer: DISCLAIMER,
   };
 

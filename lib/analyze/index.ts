@@ -175,7 +175,7 @@ export async function analyzeFindings(findings: Finding[]): Promise<AnalyzeResul
     });
 
     const additionalObservations: AdditionalObservation[] = (output.additionalObservations ?? []).map(
-      (o) => ({ ...o, confidence: 'model-inferred' as const }),
+      (o) => ({ ...o, confidence: 'inferred' as const }),
     );
 
     return { analyzed, additionalObservations, status: 'ok' };

@@ -56,7 +56,12 @@ const conclusion = fail ? 'failure' : 'success';
 // ---- GitHub context ----
 const repo = env('GITHUB_REPOSITORY'); // owner/repo
 const ref = env('GITHUB_REF');
-const sha = env('GITHUB_SHA');
+// For Vercel's repository_dispatch (vercel.deployment.success), GITHUB_SHA is the
+// default-branch HEAD at dispatch time, which can drift past the commit Vercel
+// actually built. The workflow passes the deployed commit from the dispatch
+// payload as PREFLIGHT_COMMIT_SHA so the check run lands on that exact commit; we
+// fall back to GITHUB_SHA for push/PR runs where no payload SHA exists.
+const sha = env('PREFLIGHT_COMMIT_SHA') || env('GITHUB_SHA');
 const apiBase = env('GITHUB_API_URL') || 'https://api.github.com';
 const ghToken = env('GITHUB_TOKEN');
 
@@ -94,8 +99,10 @@ const summary = [
     ? `Gate **failed** — findings at or above \`${failOn}\`. Production promotion should be held.`
     : `Gate **passed** — no findings at or above \`${failOn}\`.`,
 ];
-if (enriched?.aiError === 'subscription_required') {
-  summary.push('', '_Explanations are unavailable without an active subscription. The gate still runs on the deterministic findings._');
+if (enriched?.enrichmentError === 'subscription_required') {
+  summary.push('', '_Explanations are unavailable without an active subscription. The gate still runs on the findings._');
+} else if (enriched && enriched.enrichment === 'unavailable') {
+  summary.push('', '_Explanations are temporarily unavailable. The gate still runs on the findings._');
 } else if (enrichError) {
   summary.push('', `_Backend enrichment unavailable (${enrichError}). Gate evaluated on local findings._`);
 }
@@ -151,9 +158,16 @@ if (repo && sha && ghToken) {
 }
 
 // ---- console summary ----
+// Keep this AI-free: emit only fixed strings, never echo a raw backend reason.
 console.log(`\nPreflight: ${counts.HIGH} high · ${counts.MEDIUM} medium · ${counts.LOW} low · ${counts.INFO} info`);
-if (enriched) console.log(`Preflight: enrichment "${enriched.aiEnrichment}"${enriched.aiError ? ` (${enriched.aiError})` : ''}.`);
-else if (enrichError) console.log(`Preflight: enrichment skipped — ${enrichError}.`);
+if (enriched) {
+  if (enriched.enrichment === 'ok') console.log('Preflight: findings enriched.');
+  else if (enriched.enrichmentError === 'subscription_required')
+    console.log('Preflight: enrichment unavailable — no active subscription.');
+  else console.log('Preflight: enrichment unavailable.');
+} else if (enrichError) {
+  console.log(`Preflight: enrichment skipped — ${enrichError}.`);
+}
 console.log(fail ? `Preflight: GATE FAILED (>= ${failOn}).` : 'Preflight: gate passed.');
 
 process.exit(fail ? 1 : 0);
