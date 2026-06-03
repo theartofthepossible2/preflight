@@ -15,6 +15,7 @@ export const vercelGate: DeployGateProvider = {
         text: `Click "Add Checks" and select the "${CHECK_NAME}" check — Vercel auto-discovers it from the workflow.`,
       },
       { text: 'Require it for Production and save.' },
+      { text: 'Note: requiring a check in Deployment Checks needs a paid Vercel plan.' },
     ];
   },
   settingsUrl() {

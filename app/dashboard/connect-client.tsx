@@ -368,9 +368,13 @@ export function ConnectManager({
                           Open {sg.label} ↗
                         </a>
                         <button type="button" disabled={isBusy} onClick={() => onAttest(s.repoFullName)}>
-                          Mark as required
+                          I&apos;ve required it
                         </button>
                       </div>
+                      <p className="hint" style={{ marginTop: 8 }}>
+                        We can&apos;t confirm this automatically yet, so this is your own
+                        record that the check is required.
+                      </p>
                     </div>
                   )}
                 </li>

@@ -145,7 +145,9 @@ export default async function Dashboard() {
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Recent scans</h2>
         {recentScans.length === 0 ? (
           <p className="hint">
-            No scans yet. Add the Preflight Action to a workflow file and push.
+            {connectState.setups.length > 0
+              ? 'No scans yet. Your first scan appears here after your next pull request or deploy.'
+              : 'No scans yet. Add the Preflight Action to a workflow file and push.'}
           </p>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -171,18 +173,20 @@ export default async function Dashboard() {
         )}
       </section>
 
-      <section className="uploader">
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>Manual setup</h2>
-        <p className="hint" style={{ marginTop: 0 }}>
-          Prefer to wire it up yourself? Add this to{' '}
-          <code>.github/workflows/preflight.yml</code>:
-        </p>
-        <pre style={{ fontSize: 12 }}>{WORKFLOW_YAML.trimEnd()}</pre>
-        <p className="hint">
-          Then in Vercel → Project → Settings → Deployment Checks, select the auto-discovered{' '}
-          <code>preflight</code> check and require it for Production.
-        </p>
-      </section>
+      {connectState.installations.length === 0 && (
+        <section className="uploader">
+          <h2 style={{ marginTop: 0, fontSize: 16 }}>Manual setup</h2>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Prefer to wire it up yourself? Add this to{' '}
+            <code>.github/workflows/preflight.yml</code>:
+          </p>
+          <pre style={{ fontSize: 12 }}>{WORKFLOW_YAML.trimEnd()}</pre>
+          <p className="hint">
+            Then in Vercel → Project → Settings → Deployment Checks, select the auto-discovered{' '}
+            <code>preflight</code> check and require it for Production.
+          </p>
+        </section>
+      )}
 
       <DeleteAccount />
     </main>
@@ -203,6 +207,9 @@ export default async function Dashboard() {
       >
         <span>&copy; {new Date().getFullYear()} Space. All rights reserved.</span>
         <nav style={{ display: 'flex', gap: 16 }}>
+          <a href="mailto:admin@welcometospace.app" style={{ color: 'var(--accent)' }}>
+            Support
+          </a>
           <Link href="/terms" style={{ color: 'var(--accent)' }}>
             Terms of Service
           </Link>
