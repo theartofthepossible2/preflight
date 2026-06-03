@@ -202,3 +202,23 @@ export const repoSetups = pgTable(
     userIdx: index('repo_setup_user_idx').on(t.userId),
   }),
 );
+
+// ---------- Abuse prevention ----------
+
+// Durable fixed-window rate-limit counters, shared across serverless instances.
+// bucketKey = `${subjectKey}:${windowIndex}` where windowIndex = floor(now / WINDOW_MS),
+// so each key gets one row per window. An atomic upsert increments `count`; expired
+// rows are swept opportunistically (the expiresAt index keeps that delete cheap).
+// The limiter fails open — losing this table only removes throttling, never blocks
+// a legitimate request. See lib/rateLimit.ts.
+export const rateLimits = pgTable(
+  'rate_limit',
+  {
+    bucketKey: text('bucketKey').primaryKey(),
+    count: integer('count').notNull().default(0),
+    expiresAt: timestamp('expiresAt', { mode: 'date' }).notNull(),
+  },
+  (t) => ({
+    expiresIdx: index('rate_limit_expires_idx').on(t.expiresAt),
+  }),
+);

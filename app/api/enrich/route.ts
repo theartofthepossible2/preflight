@@ -13,6 +13,12 @@ export const maxDuration = 60;
 
 const VERSION = '0.3.0';
 
+// Reject obviously-abusive payloads before we read or analyze them. The pass/fail
+// gate decision is made locally in the Action, never here, so capping findings
+// can't change a customer's result — it only bounds backend work and model spend.
+const MAX_BODY_BYTES = 512 * 1024;
+const MAX_FINDINGS = 100;
+
 interface EnrichRequest {
   repo?: unknown;
   ref?: unknown;
@@ -41,12 +47,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid or missing API key.' }, { status: 401 });
   }
 
-  const limit = rateLimit(`apikey:${auth.apiKeyId}`);
+  const limit = await rateLimit(`apikey:${auth.apiKeyId}`);
   if (!limit.ok) {
     return NextResponse.json(
       { error: 'Rate limit exceeded.' },
       { status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } },
     );
+  }
+
+  const contentLength = Number(req.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Request body too large.' }, { status: 413 });
   }
 
   let body: EnrichRequest;
@@ -59,7 +70,7 @@ export async function POST(req: Request) {
   if (!Array.isArray(body.findings)) {
     return NextResponse.json({ error: 'findings[] is required.' }, { status: 400 });
   }
-  const findings = body.findings.filter(isFinding) as Finding[];
+  const findings = (body.findings.filter(isFinding) as Finding[]).slice(0, MAX_FINDINGS);
 
   const repo = typeof body.repo === 'string' ? body.repo : null;
   const ref = typeof body.ref === 'string' ? body.ref : null;
