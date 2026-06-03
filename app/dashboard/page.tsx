@@ -12,6 +12,7 @@ import { DEFAULT_GATE_PROVIDER, getGateProvider, listGateProviders } from '@/lib
 import { signOutAction } from './actions';
 import { ConnectManager } from './connect-client';
 import { ApiKeyManager, BillingButtons, DeleteAccount } from './dashboard-client';
+import { SecurityPosture, type PostureScan } from './posture';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export default async function Dashboard() {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin?callbackUrl=/dashboard');
 
-  const [subscription, keys, recentScans, connectState] = await Promise.all([
+  const [subscription, keys, recentScans, latestScanRows, connectState] = await Promise.all([
     getSubscriptionState(session.user.id),
     listKeys(session.user.id),
     db
@@ -42,8 +43,29 @@ export default async function Dashboard() {
       .where(eq(scans.userId, session.user.id))
       .orderBy(desc(scans.createdAt))
       .limit(20),
+    // Latest scan WITH its full findings payload — drives the deterministic ASVS
+    // posture view. Kept separate from the summary list above so we only pull the
+    // (heavier) jsonb column for the one row we actually render in detail.
+    db
+      .select({
+        repo: scans.repo,
+        ref: scans.ref,
+        commitSha: scans.commitSha,
+        createdAt: scans.createdAt,
+        aiEnriched: scans.aiEnriched,
+        findings: scans.findings,
+      })
+      .from(scans)
+      .where(eq(scans.userId, session.user.id))
+      .orderBy(desc(scans.createdAt))
+      .limit(1),
     loadConnectState(session.user.id),
   ]);
+
+  const latest = latestScanRows[0];
+  const latestScan: PostureScan | null = latest
+    ? { ...latest, findings: Array.isArray(latest.findings) ? latest.findings : [] }
+    : null;
 
   const hasBillingIssue = DUNNING_STATUSES.has(subscription.status ?? '');
 
@@ -97,6 +119,14 @@ export default async function Dashboard() {
           </form>
         </p>
       </header>
+
+      <SecurityPosture
+        scan={latestScan}
+        repos={connectState.repos.map((r) => ({
+          fullName: r.fullName,
+          defaultBranch: r.defaultBranch,
+        }))}
+      />
 
       <section className="uploader">
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Subscription</h2>

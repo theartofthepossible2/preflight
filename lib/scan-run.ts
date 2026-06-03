@@ -186,7 +186,7 @@ export async function runScan(job: ScanJob, opts: RunScanOptions = {}): Promise<
 // PR scans are excluded so they never become a baseline. Returns [] on the first scan
 // (everything is then "new"). Best-effort: a missing/oddly-shaped row yields an empty
 // baseline and the scan still runs and gates honestly.
-async function loadBaseline(installationId: number, repoFullName: string): Promise<AnalyzedFinding[]> {
+export async function loadBaseline(installationId: number, repoFullName: string): Promise<AnalyzedFinding[]> {
   const rows = await db
     .select({ findings: scans.findings })
     .from(scans)
@@ -205,7 +205,7 @@ async function loadBaseline(installationId: number, repoFullName: string): Promi
 
 // Deterministic, no-spend projection of a raw finding into the analyzed shape — used when
 // enrichment is skipped (no subscription) or unavailable. Mirrors lib/analyze's fallback.
-function toUnenriched(f: Finding): AnalyzedFinding {
+export function toUnenriched(f: Finding): AnalyzedFinding {
   const req = primaryRequirement(f.asvsCategory);
   return {
     ...f,
