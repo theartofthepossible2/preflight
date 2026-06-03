@@ -8,7 +8,7 @@ import { listKeys } from '@/lib/apiKey';
 import { getSubscriptionState } from '@/lib/stripe';
 import { WORKFLOW_YAML } from '@/lib/github/workflow-template';
 import { loadConnectState } from '@/lib/github/setup-data';
-import { DEFAULT_GATE_PROVIDER, getGateProvider } from '@/lib/gates';
+import { DEFAULT_GATE_PROVIDER, getGateProvider, listGateProviders } from '@/lib/gates';
 import { signOutAction } from './actions';
 import { ConnectManager } from './connect-client';
 import { ApiKeyManager, BillingButtons, DeleteAccount } from './dashboard-client';
@@ -71,6 +71,7 @@ export default async function Dashboard() {
       gateDescriptor(s.gateProvider, s.repoFullName, s.defaultBranch ?? undefined),
     ]),
   );
+  const providers = listGateProviders();
 
   return (
     <>
@@ -135,6 +136,7 @@ export default async function Dashboard() {
         setups={connectState.setups}
         gate={gate}
         gates={gates}
+        providers={providers}
       />
 
       <ApiKeyManager initialKeys={keys} />

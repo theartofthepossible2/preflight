@@ -6,12 +6,12 @@ import { auth } from '@/auth';
 import { db } from '@/db';
 import { githubInstallations, repoSetups } from '@/db/schema';
 import { issueKey, revokeKey } from '@/lib/apiKey';
-import { DEFAULT_GATE_PROVIDER } from '@/lib/gates';
+import { DEFAULT_GATE_PROVIDER, getGateProvider } from '@/lib/gates';
 import { getInstallationOctokit, installUrl, isGithubAppConfigured } from '@/lib/github/app';
 import { ensureWorkflow } from '@/lib/github/contents';
 import { setRepoSecret } from '@/lib/github/secrets';
 import { signConnectState } from '@/lib/github/state';
-import { SECRET_NAME } from '@/lib/github/workflow-template';
+import { SECRET_NAME, workflowYaml } from '@/lib/github/workflow-template';
 import { getSubscriptionState } from '@/lib/stripe';
 
 export interface ConnectResult {
@@ -19,11 +19,23 @@ export interface ConnectResult {
   error?: string;
 }
 
+// Flattened, serializable gate descriptor returned to the client so a freshly
+// configured row can render the correct provider's instructions/link immediately,
+// before the next server render rebuilds the per-repo map.
+export interface GateDescriptorResult {
+  id: string;
+  label: string;
+  settingsUrl: string;
+  instructions: string[];
+}
+
 export interface ConfigureResult {
   ok?: boolean;
   error?: string;
   workflowState?: string;
   secretState?: string;
+  gateProvider?: string;
+  gate?: GateDescriptorResult;
 }
 
 // Returns the GitHub App install URL; the client navigates to it.
@@ -63,6 +75,12 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
   }
   const [owner, repo] = repoFullName.split('/');
 
+  // Resolve the chosen deploy-gate provider (unknown ids fall back to Vercel). It
+  // selects the workflow variant written below and is persisted on the setup row.
+  const provider = getGateProvider(
+    String(formData.get('gateProvider') ?? DEFAULT_GATE_PROVIDER).trim(),
+  );
+
   // The installation must be one this user connected.
   const inst = await db
     .select()
@@ -83,6 +101,7 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
   let defaultBranch: string | null = null;
   let repoId: number | null = null;
   let lastError: string | null = null;
+  let priorGateProvider: string | null = null;
 
   try {
     const octokit = await getInstallationOctokit(installationId);
@@ -91,7 +110,10 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
     defaultBranch = repoInfo.data.default_branch;
     repoId = repoInfo.data.id;
 
-    const wf = await ensureWorkflow(octokit, owner, repo, defaultBranch, { overwrite });
+    const wf = await ensureWorkflow(octokit, owner, repo, defaultBranch, {
+      overwrite,
+      yaml: workflowYaml({ mechanism: provider.mechanism, defaultBranch }),
+    });
     workflowState = wf.state;
     workflowSha = wf.sha;
 
@@ -99,10 +121,15 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
     // inject it. The raw token goes straight to GitHub (sealed box) and is never
     // returned, logged, or cached — only its SHA-256 hash persists (issueKey).
     const existing = await db
-      .select({ secretState: repoSetups.secretState, apiKeyId: repoSetups.apiKeyId })
+      .select({
+        secretState: repoSetups.secretState,
+        apiKeyId: repoSetups.apiKeyId,
+        gateProvider: repoSetups.gateProvider,
+      })
       .from(repoSetups)
       .where(and(eq(repoSetups.userId, userId), eq(repoSetups.repoFullName, repoFullName)))
       .limit(1);
+    priorGateProvider = existing[0]?.gateProvider ?? null;
 
     if (existing[0]?.secretState === 'set' && existing[0]?.apiKeyId) {
       secretState = 'set';
@@ -119,6 +146,11 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
     lastError = err instanceof Error ? err.message : 'Setup failed.';
   }
 
+  // Switching a configured repo to a different provider invalidates a prior gate
+  // attestation (they required the check on the old provider, not the new one), so
+  // reset the gate state in that case only — a same-provider re-run keeps it.
+  const providerChanged = priorGateProvider !== null && priorGateProvider !== provider.id;
+
   const now = new Date();
   await db
     .insert(repoSetups)
@@ -132,7 +164,7 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
       workflowSha,
       secretState,
       apiKeyId,
-      gateProvider: DEFAULT_GATE_PROVIDER,
+      gateProvider: provider.id,
       lastError,
     })
     .onConflictDoUpdate({
@@ -145,6 +177,8 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
         workflowSha,
         secretState,
         apiKeyId,
+        gateProvider: provider.id,
+        ...(providerChanged ? { gateState: 'unverified', gateLastCheckedAt: null } : {}),
         lastError,
         updatedAt: now,
       },
@@ -152,8 +186,18 @@ export async function configureRepoAction(formData: FormData): Promise<Configure
 
   revalidatePath('/dashboard');
 
-  if (lastError) return { error: lastError, workflowState, secretState };
-  return { ok: true, workflowState, secretState };
+  const ctx = { repoFullName, defaultBranch: defaultBranch ?? undefined };
+  const gate: GateDescriptorResult = {
+    id: provider.id,
+    label: provider.label,
+    settingsUrl: provider.settingsUrl(ctx),
+    instructions: provider.instructions(ctx).map((i) => i.text),
+  };
+
+  if (lastError) {
+    return { error: lastError, workflowState, secretState, gateProvider: provider.id, gate };
+  }
+  return { ok: true, workflowState, secretState, gateProvider: provider.id, gate };
 }
 
 // Rotates the per-repo PREFLIGHT_API_KEY: mints a new key, overwrites the repo

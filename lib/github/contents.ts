@@ -29,9 +29,13 @@ export async function ensureWorkflow(
   owner: string,
   repo: string,
   branch: string,
-  opts: { overwrite?: boolean } = {},
+  opts: { overwrite?: boolean; yaml?: string } = {},
 ): Promise<EnsureWorkflowResult> {
-  const desiredB64 = Buffer.from(WORKFLOW_YAML, 'utf8').toString('base64');
+  // Defaults to the canonical Vercel YAML; the setup flow passes a provider-specific
+  // variant (see workflowYaml). Drift is compared against this same desired content,
+  // so switching providers correctly reports drift on the old file.
+  const desired = opts.yaml ?? WORKFLOW_YAML;
+  const desiredB64 = Buffer.from(desired, 'utf8').toString('base64');
 
   let existingSha: string | null = null;
   let existingContent: string | null = null;
@@ -66,7 +70,7 @@ export async function ensureWorkflow(
 
   // Tolerate trailing-whitespace-only differences so a hand-committed copy of the
   // exact YAML isn't flagged as drift.
-  if (existingContent.trimEnd() === WORKFLOW_YAML.trimEnd()) {
+  if (existingContent.trimEnd() === desired.trimEnd()) {
     return { state: 'unchanged', sha: existingSha };
   }
 

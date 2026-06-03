@@ -2,6 +2,8 @@
 // Cloudflare Pages slot in later as new files + a registry entry, with no schema
 // change (repoSetups already carries gateProvider/gateState).
 
+import type { GateMechanism } from '@/lib/github/workflow-template';
+
 export type GateState = 'unverified' | 'required' | 'missing' | 'error';
 
 export interface GateContext {
@@ -33,6 +35,9 @@ export interface DeployGateProvider {
   label: string; // human label, e.g. 'Vercel'
   // The check name the customer requires on the provider side.
   checkName: string;
+  // How this provider drives the workflow — selects which workflow variant the setup
+  // flow writes to the repo. See workflowYaml in lib/github/workflow-template.
+  mechanism: GateMechanism;
   // Step-by-step guidance rendered in the dashboard checklist.
   instructions(ctx: GateContext): GateInstruction[];
   // Deep link to the provider settings page where the check is required.

@@ -29,6 +29,8 @@ interface Props {
   gate: GateDescriptor;
   // Per-repo descriptors keyed by full name, each built with the repo's real context.
   gates: Record<string, GateDescriptor>;
+  // Deploy-gate providers the user can pick from when configuring a repo.
+  providers: { id: string; label: string }[];
 }
 
 type Chip = { label: string; cls: string };
@@ -80,11 +82,16 @@ export function ConnectManager({
   setups: initialSetups,
   gate,
   gates,
+  providers,
 }: Props) {
   const [setups, setSetups] = useState(initialSetups);
   const [selected, setSelected] = useState('');
+  const [provider, setProvider] = useState(providers[0]?.id ?? gate.id);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Descriptors returned by configure for just-saved rows, so their gate instructions
+  // render correctly before the next server render rebuilds `gates`.
+  const [gateOverrides, setGateOverrides] = useState<Record<string, GateDescriptor>>({});
 
   const configuredNames = new Set(setups.map((s) => s.repoFullName));
   const available = repos.filter((r) => !configuredNames.has(r.fullName));
@@ -102,13 +109,19 @@ export function ConnectManager({
     if (res.url) window.location.href = res.url;
   }
 
-  async function runConfigure(repoFullName: string, installationId: number, overwrite = false) {
+  async function runConfigure(
+    repoFullName: string,
+    installationId: number,
+    overwrite = false,
+    gateProvider?: string,
+  ) {
     setBusy(repoFullName);
     setError(null);
     const form = new FormData();
     form.append('repoFullName', repoFullName);
     form.append('installationId', String(installationId));
     if (overwrite) form.append('overwrite', 'true');
+    if (gateProvider) form.append('gateProvider', gateProvider);
     const res = await configureRepoAction(form);
     setBusy(null);
 
@@ -118,16 +131,26 @@ export function ConnectManager({
       return;
     }
 
+    if (res.gate) {
+      setGateOverrides((prev) => ({ ...prev, [repoFullName]: res.gate! }));
+    }
+
     setSetups((prev) => {
       const existing = prev.find((s) => s.repoFullName === repoFullName);
       const rest = prev.filter((s) => s.repoFullName !== repoFullName);
+      const nextProvider = res.gateProvider ?? gateProvider ?? existing?.gateProvider ?? gate.id;
+      // A provider switch invalidates a prior attestation (mirrors the server reset).
+      const gateState =
+        existing && existing.gateProvider !== nextProvider
+          ? 'unverified'
+          : existing?.gateState ?? 'unverified';
       const updated: RepoSetupRow = {
         repoFullName,
         installationId,
         workflowState: res.workflowState ?? 'pending',
         secretState: res.secretState ?? 'pending',
-        gateState: existing?.gateState ?? 'unverified',
-        gateProvider: existing?.gateProvider ?? gate.id,
+        gateState,
+        gateProvider: nextProvider,
         defaultBranch: existing?.defaultBranch ?? null,
         lastError: res.error ?? null,
         updatedAt: new Date().toISOString(),
@@ -235,12 +258,32 @@ export function ConnectManager({
                   </option>
                 ))}
               </select>
+              <select
+                aria-label="Deploy platform"
+                value={provider}
+                onChange={(e) => setProvider(e.target.value)}
+                disabled={!subscribed || busy !== null}
+                style={{
+                  padding: '8px 10px',
+                  font: 'inherit',
+                  background: 'var(--panel-2)',
+                  color: 'var(--text)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                }}
+              >
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 disabled={!subscribed || !selected || busy !== null}
                 onClick={() => {
                   const [inst, name] = selected.split('::');
-                  runConfigure(name, Number(inst));
+                  runConfigure(name, Number(inst), false, provider);
                 }}
               >
                 {busy !== null && busy === selectedName ? 'Configuring…' : 'Configure'}
@@ -256,9 +299,10 @@ export function ConnectManager({
               const wf = workflowChip(s.workflowState);
               const sec = secretChip(s.secretState);
               const g = gateChip(s.gateState);
-              // Real per-repo descriptor; fall back to the default for a row just
-              // configured optimistically (no server-built entry yet this render).
-              const sg = gates[s.repoFullName] ?? gate;
+              // Prefer a descriptor returned by a just-run configure, then the server's
+              // per-repo map, then the default — so the gate block always matches the
+              // row's provider, even right after an optimistic update.
+              const sg = gateOverrides[s.repoFullName] ?? gates[s.repoFullName] ?? gate;
               const isBusy = busy === s.repoFullName;
               return (
                 <li key={s.repoFullName} className="finding" style={{ marginTop: 8 }}>
@@ -281,7 +325,7 @@ export function ConnectManager({
                     <button
                       type="button"
                       disabled={!subscribed || isBusy}
-                      onClick={() => runConfigure(s.repoFullName, s.installationId)}
+                      onClick={() => runConfigure(s.repoFullName, s.installationId, false, s.gateProvider)}
                     >
                       {isBusy ? 'Working…' : 'Re-run setup'}
                     </button>
@@ -289,7 +333,7 @@ export function ConnectManager({
                       <button
                         type="button"
                         disabled={!subscribed || isBusy}
-                        onClick={() => runConfigure(s.repoFullName, s.installationId, true)}
+                        onClick={() => runConfigure(s.repoFullName, s.installationId, true, s.gateProvider)}
                       >
                         Overwrite workflow
                       </button>

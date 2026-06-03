@@ -51,3 +51,41 @@ jobs:
           api-key: \${{ secrets.${SECRET_NAME} }}
           commit-sha: \${{ github.event.client_payload.git.sha }}
 `;
+
+// How a provider drives the workflow, which selects the variant written to the repo:
+//  - 'deployment-dispatch' (Vercel): the provider fires a repository_dispatch on a
+//    successful deploy and reads the workflow result back as a deployment check.
+//  - 'branch-check' (Netlify, Cloudflare Pages): neither has Vercel's dispatch+status
+//    integration, so the workflow runs on PRs and pushes to the production branch and
+//    posts the `preflight` check run. The customer requires that check via GitHub
+//    branch protection, so the provider only ever deploys merged, passing code.
+export type GateMechanism = 'deployment-dispatch' | 'branch-check';
+
+// Provider-appropriate workflow YAML. The 'deployment-dispatch' variant returns
+// WORKFLOW_YAML verbatim (Vercel output is byte-for-byte unchanged); 'branch-check'
+// gates the production branch. Still single-source: every surface derives from here.
+export function workflowYaml(opts: { mechanism: GateMechanism; defaultBranch?: string }): string {
+  if (opts.mechanism === 'deployment-dispatch') return WORKFLOW_YAML;
+  const branch = opts.defaultBranch || 'main';
+  // For pull_request runs GITHUB_SHA is the ephemeral merge commit, which branch
+  // protection won't match against the PR head — so pass the PR head sha explicitly
+  // and fall back to github.sha on push. (report.mjs honors commit-sha, see action.)
+  return `name: Preflight
+on:
+  pull_request:
+  push:
+    branches: [${branch}]
+jobs:
+  security-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ${ACTION_REF}
+        with:
+          api-key: \${{ secrets.${SECRET_NAME} }}
+          commit-sha: \${{ github.event.pull_request.head.sha || github.sha }}
+`;
+}

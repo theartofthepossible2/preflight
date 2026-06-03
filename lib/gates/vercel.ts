@@ -7,6 +7,7 @@ export const vercelGate: DeployGateProvider = {
   id: 'vercel',
   label: 'Vercel',
   checkName: CHECK_NAME,
+  mechanism: 'deployment-dispatch',
   instructions() {
     return [
       { text: 'Open your project in Vercel → Settings → Deployment Checks.' },
