@@ -19,3 +19,5 @@ next-env.d.ts
 
 # Git worktrees created under the repo (never commit these as gitlinks)
 .claude/worktrees/
+.vercel
+.env*
