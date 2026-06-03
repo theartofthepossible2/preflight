@@ -47,14 +47,30 @@ export default async function Dashboard() {
 
   const hasBillingIssue = DUNNING_STATUSES.has(subscription.status ?? '');
 
-  // Flatten the active gate provider into a serializable descriptor for the client.
-  const provider = getGateProvider(DEFAULT_GATE_PROVIDER);
-  const gate = {
-    id: provider.id,
-    label: provider.label,
-    settingsUrl: provider.settingsUrl({ repoFullName: '' }),
-    instructions: provider.instructions({ repoFullName: '' }).map((i) => i.text),
+  // Flatten a gate provider into a serializable descriptor so the client never
+  // imports the server-only gate registry. Each descriptor carries the real repo
+  // context, so an adapter whose instructions/settings are repo- or site-specific
+  // (Netlify, Cloudflare) renders correctly per row instead of from a placeholder.
+  const gateDescriptor = (providerId: string, repoFullName: string, defaultBranch?: string) => {
+    const provider = getGateProvider(providerId);
+    const ctx = { repoFullName, defaultBranch };
+    return {
+      id: provider.id,
+      label: provider.label,
+      settingsUrl: provider.settingsUrl(ctx),
+      instructions: provider.instructions(ctx).map((i) => i.text),
+    };
   };
+
+  // Default descriptor for the active provider (used for not-yet-configured repos and
+  // optimistic UI); plus a per-repo map keyed by full name with each repo's provider.
+  const gate = gateDescriptor(DEFAULT_GATE_PROVIDER, '');
+  const gates = Object.fromEntries(
+    connectState.setups.map((s) => [
+      s.repoFullName,
+      gateDescriptor(s.gateProvider, s.repoFullName, s.defaultBranch ?? undefined),
+    ]),
+  );
 
   return (
     <>
@@ -118,6 +134,7 @@ export default async function Dashboard() {
         repos={connectState.repos}
         setups={connectState.setups}
         gate={gate}
+        gates={gates}
       />
 
       <ApiKeyManager initialKeys={keys} />

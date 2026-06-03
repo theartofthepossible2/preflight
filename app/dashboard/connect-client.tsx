@@ -24,7 +24,11 @@ interface Props {
   installations: ConnectInstallation[];
   repos: ConnectRepo[];
   setups: RepoSetupRow[];
+  // Default descriptor (active provider, no repo) for the optimistic path and any
+  // repo without its own entry yet.
   gate: GateDescriptor;
+  // Per-repo descriptors keyed by full name, each built with the repo's real context.
+  gates: Record<string, GateDescriptor>;
 }
 
 type Chip = { label: string; cls: string };
@@ -75,6 +79,7 @@ export function ConnectManager({
   repos,
   setups: initialSetups,
   gate,
+  gates,
 }: Props) {
   const [setups, setSetups] = useState(initialSetups);
   const [selected, setSelected] = useState('');
@@ -251,6 +256,9 @@ export function ConnectManager({
               const wf = workflowChip(s.workflowState);
               const sec = secretChip(s.secretState);
               const g = gateChip(s.gateState);
+              // Real per-repo descriptor; fall back to the default for a row just
+              // configured optimistically (no server-built entry yet this render).
+              const sg = gates[s.repoFullName] ?? gate;
               const isBusy = busy === s.repoFullName;
               return (
                 <li key={s.repoFullName} className="finding" style={{ marginTop: 8 }}>
@@ -299,9 +307,9 @@ export function ConnectManager({
 
                   {s.gateState !== 'required' && (
                     <div className="body">
-                      <h4>Require the {gate.label} check</h4>
+                      <h4>Require the {sg.label} check</h4>
                       <ol>
-                        {gate.instructions.map((step, idx) => (
+                        {sg.instructions.map((step, idx) => (
                           <li key={idx}>{step}</li>
                         ))}
                       </ol>
@@ -309,11 +317,11 @@ export function ConnectManager({
                         <a
                           className="chip"
                           style={{ color: 'var(--accent)', textDecoration: 'none' }}
-                          href={gate.settingsUrl}
+                          href={sg.settingsUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Open {gate.label} ↗
+                          Open {sg.label} ↗
                         </a>
                         <button type="button" disabled={isBusy} onClick={() => onAttest(s.repoFullName)}>
                           Mark as required

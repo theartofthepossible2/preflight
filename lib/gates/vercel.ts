@@ -25,4 +25,14 @@ export const vercelGate: DeployGateProvider = {
     // The dashboard surfaces this as a guided step the user attests to.
     return 'unverified';
   },
+  async provision() {
+    // Vercel's check run is auto-discovered from the workflow file we already wrote;
+    // requiring it is a user toggle in Deployment Checks, with no API to call. So
+    // there's nothing to provision — the dashboard's guided attestation does the rest.
+    return 'unverified';
+  },
+  async teardown() {
+    // Nothing was provisioned on Vercel's side, so there's nothing to remove. Removing
+    // the workflow file (handled by repo teardown) is what actually stops the check.
+  },
 };

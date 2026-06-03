@@ -6,6 +6,18 @@ export type GateState = 'unverified' | 'required' | 'missing' | 'error';
 
 export interface GateContext {
   repoFullName: string; // 'owner/name'
+  // Default branch the provider treats as "production" for the gate. Optional —
+  // adapters that don't need it ignore it.
+  defaultBranch?: string;
+  // Provider-side identity, populated as adapters gain real API access. Generic
+  // names so one shape serves Vercel (project/team), Netlify (site) and Cloudflare
+  // Pages (account/project) without a separate context type per provider.
+  projectId?: string; // Vercel project id / Cloudflare Pages project name
+  siteId?: string; // Netlify site id
+  accountId?: string; // team / account / org id on the provider
+  // Opaque reference to where the provider API token lives (an env var name or a
+  // secret id) — NEVER the token itself, so GateContext stays safe to log/serialize.
+  tokenRef?: string;
 }
 
 export interface GateInstruction {
@@ -24,4 +36,12 @@ export interface DeployGateProvider {
   // Phase 1 returns 'unverified' (no provider token yet); the UI offers manual
   // attestation. A future adapter with an API token can verify for real.
   verifyRequired(ctx: GateContext): Promise<GateState>;
+  // Provision any provider-side gate config (e.g. register a required check via the
+  // provider API) and report the resulting state. Vercel's check is discovered from
+  // the workflow and toggled by the user, so its provision is a no-op returning
+  // 'unverified'; an API-backed adapter (Netlify/Cloudflare) does real work here.
+  provision(ctx: GateContext): Promise<GateState>;
+  // Reverse of provision — remove provider-side gate config during repo/account
+  // teardown. A no-op where there's nothing to undo (e.g. Vercel).
+  teardown(ctx: GateContext): Promise<void>;
 }
