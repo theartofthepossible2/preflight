@@ -222,3 +222,16 @@ export const rateLimits = pgTable(
     expiresIdx: index('rate_limit_expires_idx').on(t.expiresAt),
   }),
 );
+
+// ---------- Billing webhook idempotency ----------
+
+// One row per Stripe event id we've durably handled. Stripe delivers events at
+// least once, so the webhook can see the same event id more than once. The handler
+// claims the id (insert ... on conflict do nothing) before processing and skips any
+// event already present; a handler failure releases the claim so Stripe's retry can
+// re-run it. See app/api/stripe/webhook/route.ts.
+export const stripeEvents = pgTable('stripe_event', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  receivedAt: timestamp('receivedAt', { mode: 'date' }).notNull().defaultNow(),
+});
