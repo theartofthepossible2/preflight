@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createKeyAction, revokeKeyAction } from './actions';
+import { createKeyAction, deleteAccountAction, revokeKeyAction } from './actions';
 
 interface KeyRow {
   id: string;
@@ -121,7 +121,13 @@ export function ApiKeyManager({ initialKeys }: { initialKeys: KeyRow[] }) {
   );
 }
 
-export function BillingButtons({ subscribed }: { subscribed: boolean }) {
+export function BillingButtons({
+  subscribed,
+  hasBillingIssue = false,
+}: {
+  subscribed: boolean;
+  hasBillingIssue?: boolean;
+}) {
   const [busy, setBusy] = useState(false);
 
   async function go(endpoint: string) {
@@ -135,11 +141,15 @@ export function BillingButtons({ subscribed }: { subscribed: boolean }) {
     }
   }
 
+  // A dunning status (past_due/unpaid/incomplete) already has a Stripe customer and
+  // subscription, so route to the portal to fix the card rather than to a new checkout.
+  const showPortal = subscribed || hasBillingIssue;
+
   return (
     <div className="row">
-      {subscribed ? (
+      {showPortal ? (
         <button type="button" onClick={() => go('/api/stripe/portal')} disabled={busy}>
-          Manage billing
+          {subscribed ? 'Manage billing' : 'Update payment method'}
         </button>
       ) : (
         <button type="button" onClick={() => go('/api/stripe/checkout')} disabled={busy}>
@@ -147,5 +157,56 @@ export function BillingButtons({ subscribed }: { subscribed: boolean }) {
         </button>
       )}
     </div>
+  );
+}
+
+export function DeleteAccount() {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onDelete() {
+    setBusy(true);
+    setError(null);
+    // On success the action signs out and redirects, so this call doesn't return;
+    // a returned value means it failed before teardown completed.
+    const result = await deleteAccountAction();
+    setBusy(false);
+    if (result && 'error' in result) setError(result.error);
+  }
+
+  return (
+    <section className="uploader">
+      <h2 style={{ marginTop: 0, fontSize: 16 }}>Delete account</h2>
+      <p className="hint" style={{ marginTop: 0 }}>
+        Permanently deletes your account: cancels your subscription, uninstalls the
+        GitHub App from your repositories, and revokes every API key. Workflows left in
+        your repos will stop passing once their keys are revoked. This cannot be undone.
+      </p>
+      {confirming ? (
+        <div className="row" style={{ gap: 8 }}>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy}
+            style={{ borderColor: 'var(--high)', color: 'var(--high)' }}
+          >
+            {busy ? 'Deleting…' : 'Yes, delete everything'}
+          </button>
+          <button type="button" onClick={() => setConfirming(false)} disabled={busy}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setConfirming(true)} disabled={busy}>
+          Delete account…
+        </button>
+      )}
+      {error && (
+        <div className="error" style={{ marginTop: 8 }}>
+          {error}
+        </div>
+      )}
+    </section>
   );
 }

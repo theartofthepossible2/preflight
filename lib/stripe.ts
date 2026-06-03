@@ -43,14 +43,33 @@ export async function getOrCreateStripeCustomer(userId: string, email: string): 
     metadata: { userId },
   });
 
-  await db
+  // The unique index on userId arbitrates concurrent callers (e.g. a double-clicked
+  // Subscribe, or checkout + portal racing): only one insert wins. A losing insert
+  // returns no row, leaving our freshly created Stripe customer orphaned — delete it
+  // and return the persisted one. Without this, two customers get minted and the one
+  // we persist may differ from the one the webhook later keys on.
+  const inserted = await db
     .insert(subscriptions)
     .values({
       userId,
       stripeCustomerId: customer.id,
       status: 'incomplete',
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ stripeCustomerId: subscriptions.stripeCustomerId });
 
-  return customer.id;
+  if (inserted[0]?.stripeCustomerId) return inserted[0].stripeCustomerId;
+
+  await stripe.customers.del(customer.id).catch(() => {});
+  const [row] = await db
+    .select({ stripeCustomerId: subscriptions.stripeCustomerId })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1);
+  if (!row?.stripeCustomerId) {
+    // The row that caused the conflict vanished between insert and re-read — surface
+    // it rather than returning the orphan we just deleted.
+    throw new Error('Failed to resolve Stripe customer after insert conflict.');
+  }
+  return row.stripeCustomerId;
 }

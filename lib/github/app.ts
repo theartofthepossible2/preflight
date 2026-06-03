@@ -45,6 +45,14 @@ export async function getInstallationOctokit(installationId: number) {
 
 export type InstallationOctokit = Awaited<ReturnType<typeof getInstallationOctokit>>;
 
+// Uninstall the App from a connected account. Uses the app-level JWT client, not an
+// installation token — the latter would be revoked by this very call. Authoritative
+// teardown: GitHub drops the App's access to the account's repos. Used by account
+// deletion (the install-lifecycle webhook then mirrors the change into our rows).
+export async function deleteInstallation(installationId: number): Promise<void> {
+  await getApp().octokit.rest.apps.deleteInstallation({ installation_id: installationId });
+}
+
 // Where the Connect button sends the user to install the App on their repos.
 export function installUrl(state: string): string {
   const slug = process.env.GITHUB_APP_SLUG;

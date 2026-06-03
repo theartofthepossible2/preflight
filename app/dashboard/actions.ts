@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { auth, signOut } from '@/auth';
+import { deleteAccount } from '@/lib/account';
 import { issueKey, revokeKey, type IssuedKey } from '@/lib/apiKey';
 
 export async function createKeyAction(formData: FormData): Promise<IssuedKey | { error: string }> {
@@ -24,5 +25,14 @@ export async function revokeKeyAction(formData: FormData): Promise<{ ok: boolean
 }
 
 export async function signOutAction() {
+  await signOut({ redirectTo: '/' });
+}
+
+export async function deleteAccountAction(): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: 'Not signed in.' };
+  await deleteAccount(session.user.id);
+  // The session row is gone with the user (cascade); signOut clears the cookie and
+  // redirects to the marketing home. The redirect throws, so nothing returns here.
   await signOut({ redirectTo: '/' });
 }

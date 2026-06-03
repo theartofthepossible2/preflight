@@ -11,9 +11,14 @@ import { loadConnectState } from '@/lib/github/setup-data';
 import { DEFAULT_GATE_PROVIDER, getGateProvider } from '@/lib/gates';
 import { signOutAction } from './actions';
 import { ConnectManager } from './connect-client';
-import { ApiKeyManager, BillingButtons } from './dashboard-client';
+import { ApiKeyManager, BillingButtons, DeleteAccount } from './dashboard-client';
 
 export const dynamic = 'force-dynamic';
+
+// Statuses where a Stripe customer/subscription exists but billing is unhealthy.
+// These route the user to the portal (fix card) and surface a dunning notice,
+// rather than offering a fresh checkout.
+const DUNNING_STATUSES = new Set(['past_due', 'unpaid', 'incomplete']);
 
 export default async function Dashboard() {
   const session = await auth();
@@ -39,6 +44,8 @@ export default async function Dashboard() {
       .limit(20),
     loadConnectState(session.user.id),
   ]);
+
+  const hasBillingIssue = DUNNING_STATUSES.has(subscription.status ?? '');
 
   // Flatten the active gate provider into a serializable descriptor for the client.
   const provider = getGateProvider(DEFAULT_GATE_PROVIDER);
@@ -86,12 +93,22 @@ export default async function Dashboard() {
             </span>
           )}
         </div>
+        {hasBillingIssue && (
+          <div
+            className="notice warn"
+            style={{ margin: '12px 0', padding: 12, border: '1px solid var(--medium)', borderRadius: 8 }}
+          >
+            <strong>There&apos;s a problem with your subscription.</strong> Your most
+            recent payment didn&apos;t go through, so enrichment is paused. Update your
+            payment method to restore it.
+          </div>
+        )}
         <p className="hint">
           {subscription.active
             ? 'Enriched findings are active on every scan.'
             : 'Without an active subscription, the gate still runs; findings come back without enrichment and the check posts a "subscription required for analysis" message instead of failing.'}
         </p>
-        <BillingButtons subscribed={subscription.active} />
+        <BillingButtons subscribed={subscription.active} hasBillingIssue={hasBillingIssue} />
       </section>
 
       <ConnectManager
@@ -147,6 +164,8 @@ export default async function Dashboard() {
           <code>preflight</code> check and require it for Production.
         </p>
       </section>
+
+      <DeleteAccount />
     </main>
     <footer style={{ borderTop: '1px solid var(--border)', marginTop: 48 }}>
       <div
